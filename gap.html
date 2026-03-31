@@ -1,0 +1,2252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MapEx - Gap Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/esri-leaflet@3.0.12/dist/esri-leaflet.js"></script>
+  <style>
+    /* ═══════════════════════════════════════════════════════════
+       Shared MapEx design system
+       ═══════════════════════════════════════════════════════════ */
+
+    @font-face {
+      font-family: 'FedEx Sans';
+      src: url('fonts/FedExSans_W-Light.woff') format('woff');
+      font-weight: 300;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    @font-face {
+      font-family: 'FedEx Sans';
+      src: url('fonts/FedExSans_W-Regular.woff') format('woff');
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    @font-face {
+      font-family: 'FedEx Sans';
+      src: url('fonts/FedExSans_W-Regular.woff') format('woff');
+      font-weight: 500;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    @font-face {
+      font-family: 'FedEx Sans';
+      src: url('fonts/FedExSans_W-Bold.woff') format('woff');
+      font-weight: 700;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      /* ── FedEx Brand Colors (exact) ── */
+      --fdx-purple:       #4D148C;
+      --fdx-purple-dark:  #3A0F6A;
+      --fdx-purple-hover: #5C1BA6;
+      --fdx-orange:       #FF6200;
+      --fdx-orange-hover: #E65800;
+
+      /* ── Neutrals (from the site) ── */
+      --fdx-white:        #FFFFFF;
+      --fdx-bg:           #F2F2F2;
+      --fdx-gray-100:     #EBEBEB;
+      --fdx-gray-200:     #D9D9D9;
+      --fdx-gray-300:     #BFBFBF;
+      --fdx-gray-400:     #8C8C8C;
+      --fdx-gray-500:     #6B6B6B;
+      --fdx-gray-600:     #4D4D4D;
+      --fdx-gray-700:     #333333;
+      --fdx-gray-900:     #1A1A1A;
+
+      /* ── Semantic ── */
+      --fdx-green:        #00805A;
+      --fdx-red:          #CC0000;
+      --fdx-amber:        #C96400;
+      --fdx-info-blue:    #0066CC;
+      --fdx-info-bg:      #E8F0FE;
+
+      /* ── Typography ── */
+      --fdx-font: 'FedEx Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      font-family: var(--fdx-font);
+      background: var(--fdx-bg);
+      color: var(--fdx-gray-900);
+      height: 100vh;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ══════════════════ TOP PURPLE BAR ══════════════════
+       The 4px purple strip at the very top of fedex.com   */
+    .top-bar {
+      height: 4px;
+      background: var(--fdx-purple);
+    }
+
+    /* ══════════════════ MAIN NAVBAR ══════════════════
+       White bg, 64px tall, logo left, nav center-left,
+       sign-in + search right. Shadow: very subtle.       */
+    .navbar {
+      background: var(--fdx-purple);
+      height: 64px;
+      display: flex;
+      align-items: center;
+      padding: 0 40px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      position: relative;
+      z-index: 100;
+    }
+
+    .fdx-logo {
+      display: flex;
+      align-items: center;
+      margin-right: 20px;
+      cursor: default;
+      line-height: 0;
+    }
+    .fdx-logo-img {
+      display: block;
+      height: 28px;
+      width: auto;
+    }
+
+    .nav-title {
+      color: rgba(255,255,255,0.8);
+      font-size: 14px;
+      font-weight: 500;
+      padding-left: 20px;
+      border-left: 1px solid rgba(255,255,255,0.2);
+    }
+
+    /* Tab buttons in navbar */
+    .nav-tabs {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      height: 100%;
+      margin-left: 28px;
+    }
+
+    .nav-tab {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      font-size: 14px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.6);
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .nav-tab:hover { color: rgba(255,255,255,0.9); }
+
+    .nav-tab.active {
+      color: #fff;
+      font-weight: 700;
+      border-bottom-color: var(--fdx-orange);
+    }
+
+    .nav-spacer { margin-left: auto; }
+
+    .page-link {
+      height: 36px;
+      padding: 0 16px;
+      border: 1px solid rgba(255,255,255,0.28);
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      transition: all 0.15s;
+      margin-right: 12px;
+    }
+
+    .page-link:hover {
+      background: rgba(255,255,255,0.16);
+      border-color: rgba(255,255,255,0.45);
+    }
+
+    .settings-btn {
+      height: 36px;
+      padding: 0 16px;
+      border: 1px solid rgba(255,255,255,0.28);
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .settings-btn:hover,
+    .settings-btn.active {
+      background: rgba(255,255,255,0.16);
+      border-color: rgba(255,255,255,0.45);
+    }
+
+    #settingsPanel {
+      position: fixed;
+      top: 78px;
+      right: 24px;
+      width: 360px;
+      background: var(--fdx-white);
+      border: 1px solid var(--fdx-gray-200);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+      z-index: 1200;
+      display: none;
+    }
+
+    #settingsPanel.visible { display: block; }
+
+    .settings-head {
+      background: var(--fdx-purple);
+      color: #fff;
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .settings-head strong {
+      font-size: 12px;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+    }
+
+    .settings-body {
+      padding: 14px 16px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .settings-sec {
+      border: 1px solid var(--fdx-gray-100);
+      padding: 12px;
+      background: #fafafa;
+    }
+
+    .settings-sec h4 {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--fdx-purple);
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .settings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .settings-row:last-child { margin-bottom: 0; }
+
+    .settings-row label,
+    .settings-check span {
+      font-size: 12px;
+      color: var(--fdx-gray-700);
+    }
+
+    .settings-row select {
+      flex: 1;
+      height: 34px;
+      border: 1px solid var(--fdx-gray-200);
+      padding: 0 10px;
+      font-family: inherit;
+      font-size: 12px;
+      color: var(--fdx-gray-700);
+      background: #fff;
+    }
+
+    .settings-check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .settings-check:last-child { margin-bottom: 0; }
+    .settings-check input { accent-color: var(--fdx-purple); }
+
+    .settings-note {
+      font-size: 11px;
+      color: var(--fdx-gray-400);
+      line-height: 1.45;
+      margin-top: 8px;
+    }
+
+    .settings-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    /* ══════════════════ ACTION BAR ══════════════════ */
+    .action-bar {
+      background: var(--fdx-white);
+      border-bottom: 1px solid var(--fdx-gray-100);
+      padding: 0 40px;
+      display: flex;
+      align-items: center;
+      height: 60px;
+    }
+
+    .tracking-group {
+      display: flex;
+      align-items: center;
+      flex: 1;
+    }
+
+    .tracking-input {
+      flex: 1;
+      height: 44px;
+      border: 2px solid var(--fdx-gray-200);
+      border-right: none;
+      border-radius: 0;
+      padding: 0 14px;
+      font-size: 14px;
+      font-family: inherit;
+      color: var(--fdx-gray-700);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .tracking-input::placeholder { color: var(--fdx-gray-400); }
+    .tracking-input:focus { border-color: var(--fdx-purple); }
+
+    /* Orange TRACK button */
+    .track-btn {
+      height: 44px;
+      padding: 0 28px;
+      background: var(--fdx-orange);
+      color: var(--fdx-white);
+      border: none;
+      font-family: inherit;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+
+    .track-btn:hover { background: var(--fdx-orange-hover); }
+    .track-btn:active { transform: scale(0.98); }
+    .track-btn:disabled { background: var(--fdx-gray-300); color: var(--fdx-gray-400); cursor: not-allowed; }
+
+    /* Orange CLEAR button */
+    .clear-btn {
+      height: 44px;
+      padding: 0 22px;
+      background: var(--fdx-white);
+      color: var(--fdx-orange);
+      border: 2px solid var(--fdx-orange);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .clear-btn:hover { background: var(--fdx-orange); color: var(--fdx-white); }
+
+    /* ══════════════════ INFO BANNER ══════════════════
+       Blue left-border info strip like the tariff notice  */
+    .info-banner {
+      background: var(--fdx-info-bg);
+      border-left: 4px solid var(--fdx-info-blue);
+      padding: 10px 16px 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--fdx-gray-700);
+    }
+
+    .info-banner svg { flex-shrink: 0; fill: var(--fdx-info-blue); }
+
+    .info-banner .count { font-weight: 700; color: var(--fdx-gray-900); }
+
+    /* ══════════════════ MAIN LAYOUT ══════════════════ */
+    #gapPanel {
+      height: calc(100vh - 64px - 4px);
+      display: flex;
+      flex-direction: column;
+    }
+
+    #container {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* ── LEFT PANEL ── */
+    #leftPanel {
+      width: 46%;
+      min-width: 400px;
+      display: flex;
+      flex-direction: column;
+      background: var(--fdx-white);
+      border-right: 1px solid var(--fdx-gray-200);
+    }
+
+    /* Controls area */
+    #controls {
+      padding: 14px 20px;
+      background: var(--fdx-white);
+      border-bottom: 1px solid var(--fdx-gray-100);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Drop Zone */
+    #dropZone {
+      border: 2px dashed var(--fdx-gray-300);
+      border-radius: 4px;
+      padding: 18px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: var(--fdx-bg);
+      color: var(--fdx-gray-500);
+      font-size: 14px;
+    }
+
+    #dropZone:hover, #dropZone.dragover {
+      border-color: var(--fdx-purple);
+      background: rgba(77,20,140,0.02);
+      color: var(--fdx-purple);
+    }
+
+    #dropZone .drop-icon { font-size: 28px; display: block; margin-bottom: 4px; opacity: 0.4; }
+
+    #dropZone.loaded {
+      border: 2px solid var(--fdx-green);
+      background: #F0FAF5;
+      color: var(--fdx-green);
+    }
+
+    /* Search */
+    .controls-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    #searchBox {
+      flex: 1;
+      height: 38px;
+      padding: 0 12px;
+      border: 1px solid var(--fdx-gray-200);
+      border-radius: 0;
+      font-size: 13px;
+      font-family: inherit;
+      color: var(--fdx-gray-700);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    #searchBox:focus { border-color: var(--fdx-purple); box-shadow: 0 0 0 2px rgba(77,20,140,0.08); }
+    #searchBox::placeholder { color: var(--fdx-gray-400); }
+
+    /* Small buttons — orange style */
+    .btn-sm {
+      height: 38px;
+      padding: 0 16px;
+      border: 2px solid var(--fdx-orange);
+      background: var(--fdx-orange);
+      color: var(--fdx-white);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn-sm:hover { background: var(--fdx-orange-hover); border-color: var(--fdx-orange-hover); }
+
+    .help-text {
+      font-size: 12px;
+      color: var(--fdx-gray-400);
+    }
+
+    /* ══════════════════ TABLE ══════════════════
+       Purple header row, zebra striping, clean borders */
+    #tableContainer {
+      flex: 1;
+      overflow: auto;
+    }
+
+    #tableContainer::-webkit-scrollbar { width: 8px; }
+    #tableContainer::-webkit-scrollbar-track { background: var(--fdx-bg); }
+    #tableContainer::-webkit-scrollbar-thumb { background: var(--fdx-gray-300); border-radius: 0; }
+
+    table { width: 100%; border-collapse: collapse; }
+
+    thead { position: sticky; top: 0; z-index: 5; }
+
+    th {
+      padding: 12px 14px;
+      background: var(--fdx-purple);
+      color: #FFFFFF;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      text-align: left;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+      border-right: 1px solid rgba(255,255,255,0.08);
+    }
+
+    th:last-child { border-right: none; }
+    th:hover { background: var(--fdx-purple-hover); }
+    th .sort-arrow { margin-left: 3px; font-size: 9px; opacity: 0.6; }
+
+    td {
+      padding: 10px 14px;
+      font-size: 13px;
+      color: var(--fdx-gray-700);
+      border-bottom: 1px solid var(--fdx-gray-100);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 180px;
+    }
+
+    tbody tr { transition: background 0.1s; }
+    tbody tr:nth-child(even) { background: #FAFAFA; }
+    tbody tr:hover { background: #EDE4F7; }
+
+    tr.selected-row {
+      background: #E8DCF5 !important;
+      border-left: 3px solid var(--fdx-purple);
+    }
+
+    tr.selected-row td {
+      color: var(--fdx-gray-900);
+      font-weight: 500;
+    }
+
+    tr.selected-row td:first-child { padding-left: 11px; }
+
+    td:first-child, th:first-child {
+      text-align: center;
+      width: 44px;
+      min-width: 44px;
+    }
+
+    /* ══════════════════ BADGES ══════════════════ */
+    .badge {
+      display: inline-block;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 2px;
+      color: var(--fdx-white);
+      font-size: 12px;
+      letter-spacing: 0.3px;
+    }
+
+    .gap-low    { background: var(--fdx-green); }
+    .gap-medium { background: var(--fdx-amber); }
+    .gap-high   { background: var(--fdx-red); }
+
+    /* ══════════════════ RIGHT PANEL / MAP ══════════════════ */
+    #rightPanel {
+      flex: 1;
+      position: relative;
+      min-width: 300px;
+      overflow: hidden;
+    }
+
+    #map { height: 100%; width: 100%; }
+
+    .leaflet-control-zoom a {
+      background: var(--fdx-white) !important;
+      color: var(--fdx-purple) !important;
+      border-color: var(--fdx-gray-200) !important;
+      width: 32px !important;
+      height: 32px !important;
+      line-height: 32px !important;
+      font-size: 16px !important;
+    }
+
+    /* ══════════════════ RESULT CARD ══════════════════
+       Floating card over the map — FedEx card style:
+       purple header, white body, orange accent           */
+    #result {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      background: var(--fdx-white);
+      border-radius: 4px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.04);
+      max-width: 370px;
+      min-width: 310px;
+      z-index: 9999;
+      font-size: 13px;
+      display: none;
+      overflow: hidden;
+    }
+
+    #result.visible { display: block; }
+
+    .result-header {
+      background: var(--fdx-purple);
+      color: var(--fdx-white);
+      padding: 12px 16px;
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .result-header .close-btn {
+      cursor: pointer;
+      opacity: 0.7;
+      font-size: 18px;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 2px;
+      transition: all 0.15s;
+    }
+
+    .result-header .close-btn:hover { opacity: 1; background: rgba(255,255,255,0.15); }
+
+    .result-body { padding: 12px 16px 0; }
+
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--fdx-gray-100);
+    }
+
+    .result-row:last-child { border-bottom: none; }
+    .result-row .label { color: var(--fdx-gray-500); font-size: 12px; }
+    .result-row .value { font-weight: 600; color: var(--fdx-gray-900); }
+
+    .result-divider {
+      border: none;
+      height: 2px;
+      background: var(--fdx-orange);
+      margin: 6px 0;
+      opacity: 0.35;
+    }
+
+    .gap-footer {
+      background: var(--fdx-bg);
+      margin: 12px -16px 0;
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid var(--fdx-gray-200);
+    }
+
+    .gap-footer .label {
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.8px;
+      color: var(--fdx-gray-600);
+    }
+
+    /* ══════════════════ LOADING ══════════════════ */
+    #loadingOverlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(255,255,255,0.85);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      z-index: 10000;
+    }
+
+    #loadingOverlay.visible { display: flex; }
+
+    .spinner {
+      width: 40px; height: 40px;
+      border: 4px solid var(--fdx-gray-200);
+      border-top-color: var(--fdx-orange);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+
+    .loading-text { font-size: 14px; color: var(--fdx-gray-500); font-weight: 500; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ══════════════════ EMPTY STATE ══════════════════ */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 200px;
+      color: var(--fdx-gray-400);
+      gap: 8px;
+    }
+
+    .empty-state svg { opacity: 0.25; }
+
+    /* ══════════════════ TAB PANELS ══════════════════ */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: flex; }
+
+    /* ══════════════════ ROUTE LOOKUP TAB ══════════════════ */
+    #lookupPanel {
+      height: calc(100vh - 64px - 4px);
+      flex-direction: row;
+    }
+
+    #lookupLeft {
+      width: 400px;
+      min-width: 360px;
+      background: var(--fdx-white);
+      border-right: 1px solid var(--fdx-gray-200);
+      display: flex;
+      flex-direction: column;
+      padding: 24px;
+      gap: 16px;
+      overflow-y: auto;
+    }
+
+    #lookupLeft h2 {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--fdx-gray-900);
+      margin: 0;
+    }
+
+    .lookup-subtitle {
+      font-size: 13px;
+      color: var(--fdx-gray-500);
+      margin-top: -8px;
+    }
+
+    .lookup-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .lookup-section label {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--fdx-gray-500);
+    }
+
+    .lookup-input {
+      width: 100%;
+      height: 44px;
+      padding: 0 14px;
+      border: 2px solid var(--fdx-gray-200);
+      font-size: 14px;
+      font-family: inherit;
+      color: var(--fdx-gray-700);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .lookup-input:focus { border-color: var(--fdx-purple); }
+    .lookup-input::placeholder { color: var(--fdx-gray-400); }
+
+    .lookup-or {
+      text-align: center;
+      font-size: 12px;
+      color: var(--fdx-gray-400);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      padding: 4px 0;
+    }
+
+    .coord-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .coord-row .lookup-input { flex: 1; }
+
+    .lookup-btn {
+      width: 100%;
+      height: 48px;
+      background: var(--fdx-orange);
+      color: var(--fdx-white);
+      border: none;
+      font-family: inherit;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .lookup-btn:hover { background: var(--fdx-orange-hover); }
+    .lookup-btn:disabled { background: var(--fdx-gray-300); cursor: not-allowed; }
+
+    .lookup-clear {
+      width: 100%;
+      height: 40px;
+      background: var(--fdx-white);
+      color: var(--fdx-orange);
+      border: 2px solid var(--fdx-orange);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .lookup-clear:hover { background: var(--fdx-orange); color: var(--fdx-white); }
+
+    /* Lookup result card */
+    .lookup-result {
+      background: var(--fdx-bg);
+      border: 1px solid var(--fdx-gray-200);
+      border-radius: 4px;
+      padding: 16px;
+      display: none;
+    }
+
+    .lookup-result.visible { display: block; }
+
+    .lookup-result h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--fdx-purple);
+      margin: 0 0 12px;
+    }
+
+    .lr-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--fdx-gray-200);
+      font-size: 13px;
+    }
+
+    .lr-row:last-child { border-bottom: none; }
+    .lr-row .lr-label { color: var(--fdx-gray-500); }
+    .lr-row .lr-value { font-weight: 600; color: var(--fdx-gray-900); }
+
+    #lookupRight {
+      flex: 1;
+      position: relative;
+    }
+
+    #lookupMap { height: 100%; width: 100%; }
+
+    #lookupLoading {
+      position: absolute;
+      inset: 0;
+      background: rgba(255,255,255,0.85);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      z-index: 10000;
+    }
+
+    #lookupLoading.visible { display: flex; }
+
+    /* ══════════════════ CONTEXT MENU ══════════════════ */
+    .ctx-menu {
+      position: fixed;
+      z-index: 99999;
+      background: var(--fdx-white);
+      border: 1px solid var(--fdx-gray-200);
+      border-radius: 4px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.04);
+      min-width: 180px;
+      padding: 6px 0;
+      font-size: 13px;
+      display: none;
+      overflow: hidden;
+    }
+
+    .ctx-menu.visible { display: block; }
+
+    .ctx-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      cursor: pointer;
+      color: var(--fdx-gray-700);
+      transition: background 0.1s;
+      white-space: nowrap;
+    }
+
+    .ctx-menu-item:hover { background: #EDE4F7; }
+
+    .ctx-menu-item.disabled {
+      opacity: 0.35;
+      pointer-events: none;
+    }
+
+    .ctx-menu-item .ctx-icon {
+      width: 18px;
+      height: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .ctx-menu-item.ctx-track {
+      color: var(--fdx-orange);
+      font-weight: 700;
+    }
+
+    .ctx-menu-item.ctx-track:hover { background: #FFF3E8; }
+
+    .ctx-menu-divider {
+      height: 1px;
+      background: var(--fdx-gray-100);
+      margin: 4px 0;
+    }
+
+    .ctx-menu-header {
+      padding: 6px 16px 4px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--fdx-gray-400);
+    }
+
+    /* ══════════════════ RESPONSIVE ══════════════════ */
+    @media (max-width: 1024px) {
+      .navbar { padding: 0 20px; }
+      .action-bar { padding: 0 20px; }
+    }
+
+    @media (max-width: 768px) {
+      #container { flex-direction: column; }
+      #leftPanel { width: 100%; min-width: 0; height: 50%; }
+      #rightPanel { height: 50%; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══ TOP PURPLE STRIP ═══ -->
+<div class="top-bar"></div>
+
+<!-- ═══ NAVBAR ═══ -->
+<nav class="navbar">
+  <div class="fdx-logo" aria-label="MapEx">
+    <img src="assets/trace.svg" alt="MapEx" class="fdx-logo-img">
+  </div>
+  <span class="nav-title">Gap Dashboard</span>
+
+  <div class="nav-tabs">
+    <span class="nav-tab active" data-tab="gap">Gap Report</span>
+    <span class="nav-tab" data-tab="lookup">Route Lookup</span>
+  </div>
+  <span class="nav-spacer"></span>
+  <a class="page-link" href="bc_parcel_explorer.html">Address Resolution</a>
+  <button class="settings-btn" id="settingsBtn" type="button">Settings</button>
+</nav>
+
+<div id="settingsPanel">
+  <div class="settings-head">
+    <strong>Resolver Settings</strong>
+    <button class="settings-btn" id="settingsCloseBtn" type="button" style="height:28px;padding:0 10px;font-size:11px">Close</button>
+  </div>
+  <div class="settings-body">
+    <div class="settings-sec">
+      <h4>Geocoding Stack</h4>
+      <div class="settings-row">
+        <label for="resolverMode">Mode</label>
+        <select id="resolverMode">
+          <option value="auto">Auto (Recommended)</option>
+          <option value="local-first">Local First</option>
+          <option value="bc-first">BC First</option>
+          <option value="nominatim-only">Nominatim Only</option>
+        </select>
+      </div>
+      <label class="settings-check"><input type="checkbox" id="cfgUseRDCK" checked> <span>Use RDCK address points</span></label>
+      <label class="settings-check"><input type="checkbox" id="cfgUseRDKB" checked> <span>Use RDKB address/property</span></label>
+      <label class="settings-check"><input type="checkbox" id="cfgUseBC" checked> <span>Use BC Geocoder</span></label>
+      <label class="settings-check"><input type="checkbox" id="cfgUseNominatim" checked> <span>Use Nominatim fallback</span></label>
+      <div class="settings-actions">
+        <button class="clear-btn" id="clearGeoCacheBtn" type="button" style="height:34px;padding:0 14px;font-size:12px">Clear Cache</button>
+      </div>
+      <div class="settings-note">Local BC stack now prefers RDCK or RDKB when the address clearly belongs in those districts, then falls back to BC Geocoder and finally Nominatim.</div>
+    </div>
+    <div class="settings-sec">
+      <h4>Map Overlays</h4>
+      <label class="settings-check"><input type="checkbox" id="cfgLayerParcels"> <span>ParcelMap BC</span></label>
+      <label class="settings-check"><input type="checkbox" id="cfgLayerRDCK"> <span>RDCK address points</span></label>
+      <label class="settings-check"><input type="checkbox" id="cfgLayerRDKB"> <span>RDKB address points</span></label>
+      <div class="settings-note">These overlays stay off by default so the dashboard keeps the same feel and the maps stay light until you ask for more context.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     TAB 1: GAP REPORT (existing)
+     ════════════════════════════════════════════ -->
+<div id="gapPanel" class="tab-panel active">
+
+  <!-- Action Bar -->
+  <div class="action-bar">
+    <div class="tracking-group">
+      <input class="tracking-input" type="text" id="searchBox" placeholder="Search driver, address, city...">
+      <button class="track-btn" id="calcBtn" disabled>TRACK</button>
+      <button class="clear-btn" id="clearBtn">CLEAR</button>
+    </div>
+  </div>
+
+  <!-- Info Banner -->
+  <div class="info-banner">
+    <svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+    <span>Rows loaded: <span class="count" id="statRows">0</span> &nbsp;|&nbsp; Selected: <span class="count" id="statSelected">0</span> &nbsp;|&nbsp; Click two delivery rows, then press <strong>TRACK</strong> to calculate the gap.</span>
+  </div>
+
+  <!-- Main Content -->
+  <div id="container">
+    <div id="leftPanel">
+      <div id="controls">
+        <div id="dropZone" tabindex="0">
+          <span class="drop-icon">&#128230;</span>
+          <strong>Drop CSV file here</strong> or click to browse
+          <input type="file" id="csvFile" accept=".csv" style="display:none">
+        </div>
+      </div>
+      <div id="tableContainer">
+        <table id="csvTable">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+        <div class="empty-state" id="emptyState">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="#999"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/></svg>
+          <span>Upload a CSV file to get started</span>
+        </div>
+      </div>
+    </div>
+    <div id="rightPanel">
+      <div id="map"></div>
+      <div id="result"></div>
+      <div id="loadingOverlay">
+        <div class="spinner"></div>
+        <span class="loading-text">Calculating route...</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════
+     TAB 2: ROUTE LOOKUP
+     ════════════════════════════════════════════ -->
+<div id="lookupPanel" class="tab-panel">
+
+  <div id="lookupLeft">
+    <h2>Route Lookup</h2>
+    <p class="lookup-subtitle">Enter two addresses or coordinates to get distance, drive time, and route.</p>
+
+    <!-- POINT A -->
+    <div class="lookup-section">
+      <label>Point A — Origin</label>
+      <input class="lookup-input" type="text" id="addrA" placeholder="e.g. 460 Columbia Ave Castlegar BC V1N 1G7">
+      <div class="lookup-or">or enter coordinates</div>
+      <div class="coord-row">
+        <input class="lookup-input" type="text" id="latA" placeholder="Lat (49.3217)">
+        <input class="lookup-input" type="text" id="lonA" placeholder="Lon (-117.6649)">
+      </div>
+    </div>
+
+    <!-- POINT B -->
+    <div class="lookup-section">
+      <label>Point B — Destination</label>
+      <input class="lookup-input" type="text" id="addrB" placeholder="e.g. 1816 Brilliant Rd Castlegar BC V1N 4K2">
+      <div class="lookup-or">or enter coordinates</div>
+      <div class="coord-row">
+        <input class="lookup-input" type="text" id="latB" placeholder="Lat (49.3091)">
+        <input class="lookup-input" type="text" id="lonB" placeholder="Lon (-117.6234)">
+      </div>
+    </div>
+
+    <button class="lookup-btn" id="lookupBtn">ROUTE</button>
+    <button class="lookup-clear" id="lookupClearBtn">CLEAR</button>
+
+    <!-- Results -->
+    <div class="lookup-result" id="lookupResult">
+      <h3>Route Results</h3>
+      <div class="lr-row"><span class="lr-label">Origin</span><span class="lr-value" id="lrFrom">—</span></div>
+      <div class="lr-row"><span class="lr-label">Destination</span><span class="lr-value" id="lrTo">—</span></div>
+      <div class="lr-row"><span class="lr-label">Distance</span><span class="lr-value" id="lrDist">—</span></div>
+      <div class="lr-row"><span class="lr-label">Est. Drive Time</span><span class="lr-value" id="lrTime">—</span></div>
+    </div>
+  </div>
+
+  <div id="lookupRight">
+    <div id="lookupMap"></div>
+    <div id="lookupLoading">
+      <div class="spinner"></div>
+      <span class="loading-text">Calculating route...</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ RIGHT-CLICK CONTEXT MENU ═══ -->
+<div class="ctx-menu" id="ctxMenu">
+  <div class="ctx-menu-header" id="ctxHeader">Selection</div>
+  <div class="ctx-menu-item" id="ctxSelect">
+    <span class="ctx-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></span>
+    <span>Select Row</span>
+  </div>
+  <div class="ctx-menu-item" id="ctxDeselect">
+    <span class="ctx-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></span>
+    <span>Deselect Row</span>
+  </div>
+  <div class="ctx-menu-divider"></div>
+  <div class="ctx-menu-item ctx-track" id="ctxTrack">
+    <span class="ctx-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg></span>
+    <span>Track Gap</span>
+  </div>
+  <div class="ctx-menu-divider"></div>
+  <div class="ctx-menu-item" id="ctxClear">
+    <span class="ctx-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></span>
+    <span>Clear Selection</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     JAVASCRIPT — All logic preserved, wired to new layout
+     ═══════════════════════════════════════════════════════════ -->
+<script>
+// ── State ──
+let csvData = [];
+let filteredIndices = [];
+let selected = new Set();
+const addressCache = new Map();
+let routeLine = null;
+let markers = [];
+const CONFIG = {
+  resolverMode: 'auto',
+  useRDCK: true,
+  useRDKB: true,
+  useBC: true,
+  useNominatim: true,
+  layerParcels: false,
+  layerRDCK: false,
+  layerRDKB: false
+};
+
+const RDCK_ADDR = 'https://gis.rdck.bc.ca/server/rest/services/RDCK_Public_Web_Map_MIL/MapServer/0';
+const RDKB_PROPERTY = 'https://mapping.rdkb.com/server/rest/services/Planning/Property_Search/MapServer/150';
+const RDKB_ADDRESS_TABLE = 'https://mapping.rdkb.com/server/rest/services/Planning/BaseLayersExternal/FeatureServer/260';
+const RDKB_ADDRESS_POINTS = 'https://mapping.rdkb.com/server/rest/services/Planning/BaseLayersExternal/FeatureServer/261';
+const BC_GEO = 'https://geocoder.api.gov.bc.ca';
+const BC_WFS = 'https://openmaps.gov.bc.ca/geo/pub/ows';
+
+const RDCK_LOCALITIES = ['CASTLEGAR','NELSON','ROBSON','THRUMS','SHOREACRES','WINLAW','KASLO','NAKUSP','SLOCAN','SLOCAN PARK','SILVERTON','NEW DENVER','BALFOUR','BLUEBERRY','CRAWFORD BAY','CRESTON','SALMO'];
+const RDKB_LOCALITIES = ['TRAIL','ROSSLAND','GENELLE','JANELLE','FRUITVALE','WARFIELD','MONTROSE','GRAND FORKS','CHRISTINA LAKE','GREENWOOD','MIDWAY','BEAVERDELL','WESTBRIDGE','ROCK CREEK','CASCADE'];
+let lastBCGeo = 0;
+let lastNominatim = 0;
+
+// ── Map ──
+const map = L.map('map', { zoomControl: true }).setView([49.28, -117.65], 10);
+// Satellite imagery (Esri World Imagery — free, no API key)
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  attribution: '&copy; Esri, Maxar, Earthstar Geographics', maxZoom: 19
+}).addTo(map);
+
+const mainOverlays = createOverlaySet(map);
+syncOverlaySet(mainOverlays);
+// Road labels overlay on top of satellite
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: 19, opacity: 0.7
+}).addTo(map);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: 19
+}).addTo(map);
+
+// FedEx purple pin (origin)
+const fdxIcon = L.divIcon({
+  className: '',
+  html: `<svg width="30" height="42" viewBox="0 0 30 42"><path d="M15 0C6.7 0 0 6.7 0 15c0 11.25 15 27 15 27s15-15.75 15-27C30 6.7 23.3 0 15 0z" fill="#4D148C"/><circle cx="15" cy="15" r="7" fill="#FF6200"/><circle cx="15" cy="15" r="3.5" fill="#fff"/></svg>`,
+  iconSize: [30, 42], iconAnchor: [15, 42], popupAnchor: [0, -42]
+});
+
+// FedEx orange pin (destination)
+const fdxIconEnd = L.divIcon({
+  className: '',
+  html: `<svg width="30" height="42" viewBox="0 0 30 42"><path d="M15 0C6.7 0 0 6.7 0 15c0 11.25 15 27 15 27s15-15.75 15-27C30 6.7 23.3 0 15 0z" fill="#FF6200"/><circle cx="15" cy="15" r="7" fill="#4D148C"/><circle cx="15" cy="15" r="3.5" fill="#fff"/></svg>`,
+  iconSize: [30, 42], iconAnchor: [15, 42], popupAnchor: [0, -42]
+});
+
+// ── Kootenay postal resolver: full 6-char rural codes first, then urban/rural FSA fallback ──
+const fullPostalToCity = {
+  // Upper Columbia / East Kootenay rural (V0A)
+  "V0A0A0": "Golden",
+  "V0A1B0": "Brisco",
+  "V0A1E0": "Edgewater",
+  "V0A1G0": "Field",
+  "V0A1H0": "Golden",
+  "V0A1J0": "Harrogate",
+  "V0A1K0": "Invermere",
+  "V0A1L0": "Parson",
+  "V0A1M0": "Radium Hot Springs",
+  "V0A1P0": "Spillimacheen",
+  "V0A1T0": "Panorama",
+
+  // East Kootenay rural (V0B)
+  "V0B1A0": "Boswell",
+  "V0B1B0": "Canal Flats",
+  "V0B1C0": "Canyon",
+  "V0B1E0": "Crawford Bay",
+  "V0B1G0": "Creston",
+  "V0B1H0": "Elkford",
+  "V0B1K0": "Erickson",
+  "V0B1L0": "Fairmont Hot Springs",
+  "V0B1M0": "Fernie",
+  "V0B1N0": "Fort Steele",
+  "V0B1R0": "Grasmere",
+  "V0B1S0": "Gray Creek",
+  "V0B1T0": "Jaffray",
+  "V0B1V1": "Kingsgate",
+  "V0B1W1": "Kitchener",
+  "V0B1X0": "Kootenay Bay",
+  "V0B2A0": "Moyie",
+  "V0B2B0": "Riondel",
+  "V0B2C0": "Sirdar",
+  "V0B2E0": "Skookumchuck",
+  "V0B2G0": "Sparwood",
+  "V0B2H0": "Ta Ta Creek",
+  "V0B2J0": "Wardner",
+  "V0B2K0": "Wasa",
+  "V0B2L0": "Windermere",
+  "V0B2N0": "Wynndel",
+  "V0B2P0": "Yahk",
+  "V0B3G0": "Creston",
+
+  // West Kootenay rural (V0G)
+  "V0G1A0": "Ainsworth Hot Springs",
+  "V0G1B0": "Argenta",
+  "V0G1C0": "Balfour",
+  "V0G1E0": "Burton",
+  "V0G1G0": "Genelle",
+  "V0G1H0": "Crescent Valley",
+  "V0G1J0": "Edgewood",
+  "V0G1K0": "Fauquier",
+  "V0G1L0": "Fruitvale",
+  "V0G1M0": "Kaslo",
+  "V0G1N0": "Meadow Creek",
+  "V0G1P0": "Montrose",
+  "V0G1R0": "Nakusp",
+  "V0G1S0": "New Denver",
+  "V0G1V0": "Procter",
+  "V0G1X0": "Robson",
+  "V0G1Y0": "Rossland",
+  "V0G1Z0": "Salmo",
+  "V0G2B0": "Silverton",
+  "V0G2C0": "Slocan",
+  "V0G2E0": "Slocan Park",
+  "V0G2G0": "South Slocan",
+  "V0G2J0": "Winlaw",
+  "V0G2K0": "Ymir"
+};
+
+const postalPrefixToCity = {
+  "V1A": "Kimberley",
+  "V1C": "Cranbrook",
+  "V1L": "Nelson",
+  "V1N": "Castlegar",
+  "V1R": "Trail",
+  "V0A": "Upper Columbia / East Kootenay",
+  "V0B": "East Kootenay",
+  "V0G": "West Kootenay"
+};
+
+function resolveCity(postal) {
+  if (!postal) return "Unknown";
+  const clean = String(postal).replace(/\s/g, '').toUpperCase();
+  if (fullPostalToCity[clean]) return fullPostalToCity[clean];
+  const prefix = clean.substring(0, 3);
+  return postalPrefixToCity[prefix] || "Unknown";
+}
+
+function normalizeText(v) {
+  return String(v || '').trim().toUpperCase().replace(/\s+/g, ' ');
+}
+
+function sqlText(v) {
+  return String(v || '').replace(/'/g, "''");
+}
+
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+function throttleWait(lastRef, minMs) {
+  const wait = Math.max(0, minMs - (Date.now() - lastRef.value));
+  return wait ? sleep(wait) : Promise.resolve();
+}
+
+function buildRowAddressQuery(row) {
+  return [row[2] || '', (row[7] && row[7] !== 'Unknown') ? row[7] : '', 'BC', row[3] || ''].filter(Boolean).join(', ');
+}
+
+function detectLocality(query, localities) {
+  const q = normalizeText(query);
+  return localities.find(name => q.includes(name)) || '';
+}
+
+function parseResolverQuery(query, hints = {}) {
+  const unitMatch = String(query || '').trim().match(/^\s*(\d+[A-Z]?)\s*-\s*(.+)$/i);
+  const unit = unitMatch ? unitMatch[1].toUpperCase() : '';
+  let q = normalizeText(unitMatch ? unitMatch[2] : query)
+    .replace(/\bBRITISH COLUMBIA\b/g, ' ')
+    .replace(/\bBC\b/g, ' ')
+    .replace(/[,\u2014]/g, ' ')
+    .replace(/\bV\d[A-Z]\s?\d[A-Z]\d\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const localityHint = normalizeText(hints.locality || '');
+  const locality = localityHint || detectLocality(q, [...RDCK_LOCALITIES, ...RDKB_LOCALITIES]);
+  if (locality) q = q.replace(locality, ' ').replace(/\s+/g, ' ').trim();
+
+  const region = RDCK_LOCALITIES.includes(locality) ? 'rdck' : (RDKB_LOCALITIES.includes(locality) ? 'rdkb' : null);
+  const match = q.match(/^(\d+[A-Z]?)\s+(.+)$/);
+  return {
+    unit,
+    locality,
+    region,
+    streetNo: match ? match[1] : '',
+    streetText: match ? match[2].trim() : q,
+    fullText: q
+  };
+}
+
+function buildResolverCacheKey(query, hints = {}) {
+  return JSON.stringify({
+    q: normalizeText(query),
+    locality: normalizeText(hints.locality || ''),
+    mode: CONFIG.resolverMode,
+    rdck: CONFIG.useRDCK,
+    rdkb: CONFIG.useRDKB,
+    bc: CONFIG.useBC,
+    nominatim: CONFIG.useNominatim
+  });
+}
+
+function estimateFeatureCenter(feature) {
+  const rings = feature && feature.geometry && feature.geometry.rings;
+  if (!rings || !rings.length || !rings[0].length) return null;
+  const pts = rings[0];
+  const sum = pts.reduce((acc, pt) => {
+    acc.lat += pt[1];
+    acc.lon += pt[0];
+    return acc;
+  }, { lat:0, lon:0 });
+  return { lat: sum.lat / pts.length, lon: sum.lon / pts.length };
+}
+
+async function fetchJson(url, opts) {
+  const res = await fetch(url, opts);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+async function resolveRDCK(query, hints = {}) {
+  const parsed = parseResolverQuery(query, hints);
+  if (!parsed.streetText && !parsed.streetNo) return null;
+  const clauses = [];
+  if (parsed.streetNo) clauses.push(`STREETNO=${parsed.streetNo}`);
+  if (parsed.streetText) clauses.push(`ADDRESS LIKE '%${sqlText(parsed.streetText)}%'`);
+  if (parsed.locality) clauses.push(`COMM LIKE '${sqlText(parsed.locality)}%'`);
+  const where = clauses.join(' AND ');
+  if (!where) return null;
+  const data = await fetchJson(`${RDCK_ADDR}/query?where=${encodeURIComponent(where)}&outFields=ADDRESS,SUITE,COMM,FOLIO&returnGeometry=true&outSR=4326&f=json&resultRecordCount=10&orderByFields=ADDRESS,SUITE`);
+  let features = data.features || [];
+  if (parsed.unit) features = features.filter(f => String((f.attributes || {}).SUITE || '').trim().toUpperCase() === parsed.unit);
+  const first = features[0];
+  if (!first || !first.geometry) return null;
+  const a = first.attributes || {};
+  return {
+    coords: `${first.geometry.x},${first.geometry.y}`,
+    lat: first.geometry.y,
+    lon: first.geometry.x,
+    label: `${a.SUITE ? a.SUITE + '-' : ''}${a.ADDRESS || query}`,
+    source: 'RDCK Address Points'
+  };
+}
+
+function buildRDKBWhere(parsed) {
+  const clauses = [];
+  if (parsed.unit) clauses.push(`apt_no='${sqlText(parsed.unit)}'`);
+  if (parsed.streetNo) clauses.push(`street_no='${sqlText(parsed.streetNo)}'`);
+  if (parsed.streetText) clauses.push(`street_name LIKE '${sqlText(parsed.streetText)}%'`);
+  if (parsed.locality) clauses.push(`city LIKE '${sqlText(parsed.locality)}%'`);
+  return clauses.join(' AND ');
+}
+
+async function resolveRDKB(query, hints = {}) {
+  const parsed = parseResolverQuery(query, hints);
+  const where = buildRDKBWhere(parsed);
+  if (!where) return null;
+  const addrData = await fetchJson(`${RDKB_ADDRESS_TABLE}/query?where=${encodeURIComponent(where)}&outFields=folio,apt_no,street_no,street_name,city&returnGeometry=false&f=json&resultRecordCount=10&orderByFields=street_no,street_name,apt_no`);
+  const firstAddr = (addrData.features || [])[0];
+  if (!firstAddr) return null;
+  const a = firstAddr.attributes || {};
+  const propertyWhere = a.folio
+    ? `Folio='${sqlText(a.folio)}'`
+    : [`street_no='${sqlText(a.street_no || parsed.streetNo)}'`, `street_name LIKE '${sqlText(a.street_name || parsed.streetText)}%'`, a.city || parsed.locality ? `city LIKE '${sqlText(a.city || parsed.locality)}%'` : ''].filter(Boolean).join(' AND ');
+  const propertyData = await fetchJson(`${RDKB_PROPERTY}/query?where=${encodeURIComponent(propertyWhere)}&outFields=FullAddress,apt_no,street_no,street_name,city,Folio&returnGeometry=true&outSR=4326&f=json&resultRecordCount=10`);
+  const firstProperty = (propertyData.features || [])[0];
+  const center = firstProperty ? estimateFeatureCenter(firstProperty) : null;
+  if (!center) return null;
+  const p = firstProperty.attributes || {};
+  return {
+    coords: `${center.lon},${center.lat}`,
+    lat: center.lat,
+    lon: center.lon,
+    label: p.FullAddress || `${a.apt_no ? a.apt_no + '-' : ''}${a.street_no || ''} ${a.street_name || ''}`.trim(),
+    source: 'RDKB Address + Property'
+  };
+}
+
+async function resolveBCGeocoder(query) {
+  await throttleWait({ value:lastBCGeo }, 180);
+  lastBCGeo = Date.now();
+  const data = await fetchJson(`${BC_GEO}/addresses.json?addressString=${encodeURIComponent(query)}&maxResults=1&outputSRS=4326`);
+  const feature = (data.features || [])[0];
+  if (!feature || !feature.geometry || !feature.geometry.coordinates) return null;
+  const [lon, lat] = feature.geometry.coordinates;
+  const p = feature.properties || {};
+  return {
+    coords: `${lon},${lat}`,
+    lat,
+    lon,
+    label: p.fullAddress || query,
+    source: 'BC Geocoder'
+  };
+}
+
+async function resolveNominatim(query) {
+  await throttleWait({ value:lastNominatim }, 1100);
+  lastNominatim = Date.now();
+  const data = await fetchJson(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`, {
+    headers: { 'User-Agent': 'DriverGapDashboard/1.0' }
+  });
+  if (!data.length) return null;
+  return {
+    coords: `${data[0].lon},${data[0].lat}`,
+    lat: Number(data[0].lat),
+    lon: Number(data[0].lon),
+    label: data[0].display_name || query,
+    source: 'Nominatim'
+  };
+}
+
+async function resolveAddress(query, hints = {}) {
+  const cacheKey = buildResolverCacheKey(query, hints);
+  if (addressCache.has(cacheKey)) return addressCache.get(cacheKey);
+
+  const parsed = parseResolverQuery(query, hints);
+  const localFirst = CONFIG.resolverMode === 'local-first' || CONFIG.resolverMode === 'auto';
+  const bcFirst = CONFIG.resolverMode === 'bc-first';
+  const nominatimOnly = CONFIG.resolverMode === 'nominatim-only';
+
+  const localResolvers = [];
+  if (CONFIG.useRDCK && (parsed.region === 'rdck' || (localFirst && !parsed.region))) localResolvers.push(() => resolveRDCK(query, hints));
+  if (CONFIG.useRDKB && (parsed.region === 'rdkb' || (localFirst && !parsed.region))) localResolvers.push(() => resolveRDKB(query, hints));
+  if (!parsed.region && localFirst) {
+    if (CONFIG.useRDCK && !localResolvers.length) localResolvers.push(() => resolveRDCK(query, hints));
+    if (CONFIG.useRDKB && localResolvers.length < 2) localResolvers.push(() => resolveRDKB(query, hints));
+  }
+
+  const resolvers = [];
+  if (!nominatimOnly) {
+    if (bcFirst && CONFIG.useBC) resolvers.push(() => resolveBCGeocoder(query));
+    resolvers.push(...localResolvers);
+    if (!bcFirst && CONFIG.useBC) resolvers.push(() => resolveBCGeocoder(query));
+  }
+  if (CONFIG.useNominatim || nominatimOnly) resolvers.push(() => resolveNominatim(query));
+
+  let lastError = null;
+  for (const resolver of resolvers) {
+    try {
+      const result = await resolver();
+      if (result && result.coords) {
+        addressCache.set(cacheKey, result);
+        return result;
+      }
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw new Error(lastError ? lastError.message : `Address not found: ${query}`);
+}
+
+function createOverlaySet(targetMap) {
+  return {
+    parcels: L.tileLayer.wms(BC_WFS, {
+      layers: 'pub:WHSE_CADASTRE.PMBC_PARCEL_FABRIC_POLY_SVW',
+      format: 'image/png',
+      transparent: true,
+      opacity: 0.28,
+      maxZoom: 19
+    }),
+    rdck: L.esri.featureLayer({
+      url: RDCK_ADDR,
+      pointToLayer: (_, latlng) => L.circleMarker(latlng, {
+        radius: 3,
+        color: '#4D148C',
+        weight: 1,
+        fillColor: '#57D3FF',
+        fillOpacity: 0.85
+      })
+    }).bindPopup(layer => {
+      const p = (layer && layer.feature && layer.feature.properties) || {};
+      return `<div style="font-family:'FedEx Sans',Roboto,sans-serif;font-size:12px"><strong>${escapeHtml(p.SUITE ? p.SUITE + '-' : '')}${escapeHtml(p.ADDRESS || '')}</strong><br>${escapeHtml(p.COMM || '')}</div>`;
+    }),
+    rdkb: L.esri.featureLayer({
+      url: RDKB_ADDRESS_POINTS,
+      pointToLayer: (_, latlng) => L.circleMarker(latlng, {
+        radius: 3,
+        color: '#6B4F00',
+        weight: 1,
+        fillColor: '#F4B400',
+        fillOpacity: 0.9
+      })
+    }).bindPopup(layer => {
+      const p = (layer && layer.feature && layer.feature.properties) || {};
+      return `<div style="font-family:'FedEx Sans',Roboto,sans-serif;font-size:12px"><strong>${escapeHtml(p.FULL_ADDRESS || p.Building_Address || '')}</strong><br>${escapeHtml(p.LOCALITY || '')}</div>`;
+    })
+  };
+}
+
+function syncOverlaySet(layerSet, targetMap = map) {
+  if (!layerSet || !targetMap) return;
+  [[CONFIG.layerParcels, layerSet.parcels], [CONFIG.layerRDCK, layerSet.rdck], [CONFIG.layerRDKB, layerSet.rdkb]].forEach(([enabled, layer]) => {
+    if (!layer) return;
+    if (enabled && !targetMap.hasLayer(layer)) layer.addTo(targetMap);
+    if (!enabled && targetMap.hasLayer(layer)) targetMap.removeLayer(layer);
+  });
+}
+
+// ── CSV Parsing ──
+function parseCSVLine(line) {
+  const result = []; let current = ''; let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"' && line[i+1] === '"') { current += '"'; i++; }
+      else if (ch === '"') inQuotes = false;
+      else current += ch;
+    } else {
+      if (ch === '"') inQuotes = true;
+      else if (ch === ',') { result.push(current.trim()); current = ''; }
+      else current += ch;
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
+function parseCSV(text) {
+  return text.trim().split(/\r?\n/).filter(l => l.trim()).map(parseCSVLine);
+}
+
+function normalizeHeaderName(v) {
+  return String(v || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function getHeaderIndexMap(headerRow) {
+  const map = {};
+  (headerRow || []).forEach((name, idx) => {
+    const key = normalizeHeaderName(name);
+    if (key) map[key] = idx;
+  });
+  return map;
+}
+
+function normalizeCsvRows(rows) {
+  if (!rows.length) return [];
+
+  const headerMap = getHeaderIndexMap(rows[0]);
+  const hasStartStopShape = headerMap.stopnumber != null && headerMap.address1 != null && headerMap.postalcode != null && headerMap.begstoptime != null;
+  const hasKnownHeader = hasStartStopShape || headerMap.id != null || headerMap.driver != null || headerMap.address != null || headerMap.postal != null || headerMap.time != null || headerMap.order != null;
+  const startIndex = hasKnownHeader ? 1 : 0;
+
+  if (hasStartStopShape) {
+    return rows.slice(startIndex).map(r => {
+      const stopNumber = String(r[headerMap.stopnumber] || '').trim();
+      const recipientName = String(r[headerMap.recipientname] || '').trim();
+      const address1 = String(r[headerMap.address1] || '').trim();
+      const address2 = String(r[headerMap.address2] || '').trim();
+      const postal = String(r[headerMap.postalcode] || '').replace(/\s/g, '').toUpperCase();
+      const begStopTime = String(r[headerMap.begstoptime] || '').trim();
+      const endStopTime = String(r[headerMap.endstoptime] || '').trim();
+      const fullAddress = [address1, address2].filter(Boolean).join(', ');
+      return [stopNumber, recipientName, fullAddress, postal, '', begStopTime, stopNumber, resolveCity(postal), endStopTime];
+    }).filter(r => r.some(v => String(v || '').trim()));
+  }
+
+  return rows.slice(startIndex).map(r => {
+    const postal = String(r[3] || '').replace(/\s/g, '').toUpperCase();
+    return [r[0] || '', r[1] || '', r[2] || '', postal, r[4] || '', r[5] || '', r[6] || '', resolveCity(postal), r[7] || ''];
+  }).filter(r => r.some(v => String(v || '').trim()));
+}
+
+// ── File Loading ──
+const dropZone = document.getElementById('dropZone');
+const csvFileInput = document.getElementById('csvFile');
+const emptyState = document.getElementById('emptyState');
+
+// Drop zone click opens file picker
+dropZone.addEventListener('click', () => csvFileInput.click());
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.endsWith('.csv')) loadFile(file);
+});
+
+csvFileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+
+function loadFile(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const rows = parseCSV(ev.target.result);
+    csvData = normalizeCsvRows(rows);
+    selected.clear();
+    filteredIndices = csvData.map((_, i) => i);
+    renderTable();
+    updateStats();
+    emptyState.style.display = 'none';
+    dropZone.classList.add('loaded');
+    dropZone.innerHTML = `<strong>${escapeHtml(file.name)}</strong> &mdash; ${csvData.length} deliveries loaded`;
+  };
+  reader.readAsText(file);
+}
+
+
+// ── Search ──
+const searchBox = document.getElementById('searchBox');
+searchBox.addEventListener('input', () => {
+  const q = searchBox.value.toLowerCase();
+  filteredIndices = !q
+    ? csvData.map((_, i) => i)
+    : csvData.map((r, i) => ({ r, i })).filter(({ r }) => r.some(c => c.toLowerCase().includes(q))).map(({ i }) => i);
+  renderTable();
+});
+
+// ── Table ──
+const headers = ["#", "Stop #", "Recipient", "Address", "Postal", "City", "Start", "End", "Stop Min", "Gap to Next"];
+let sortCol = -1, sortAsc = true;
+
+
+function getRowStopMinutes(row) {
+  return diffMinutes(row[5], row[8]);
+}
+
+function getRowGapToNext(idx) {
+  const row = csvData[idx];
+  const nextRow = csvData[idx + 1];
+  if (!row || !nextRow) return null;
+  const fromTime = row[8] || row[5];
+  const toTime = nextRow[5];
+  return diffMinutes(fromTime, toTime);
+}
+
+function formatCellMinutes(mins) {
+  return mins == null || Number.isNaN(mins) ? '' : mins.toFixed(1);
+}
+
+
+function renderTable() {
+  const thead = document.querySelector('#csvTable thead');
+  const tbody = document.querySelector('#csvTable tbody');
+
+  thead.innerHTML = '<tr>' + headers.map((h, i) =>
+    `<th data-col="${i}">${h}${sortCol === i ? `<span class="sort-arrow">${sortAsc ? '\u25B2' : '\u25BC'}</span>` : ''}</th>`
+  ).join('') + '</tr>';
+
+  thead.querySelectorAll('th').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = parseInt(th.dataset.col);
+      if (sortCol === col) sortAsc = !sortAsc;
+      else { sortCol = col; sortAsc = true; }
+      sortTable();
+    });
+  });
+
+  tbody.innerHTML = '';
+  filteredIndices.forEach(idx => {
+    const r = csvData[idx];
+    const tr = document.createElement('tr');
+    if (selected.has(idx)) tr.classList.add('selected-row');
+
+    const stopMinutes = getRowStopMinutes(r);
+    const gapToNext = getRowGapToNext(idx);
+
+    const cells = [
+      idx + 1,
+      r[0] || '',
+      r[1] || '',
+      r[2] || '',
+      r[3] || '',
+      r[7] || '',
+      r[5] || '',
+      r[8] || '',
+      formatCellMinutes(stopMinutes),
+      formatCellMinutes(gapToNext)
+    ];
+
+    tr.innerHTML = cells.map(c => {
+      const safe = escapeHtml(String(c ?? ''));
+      return `<td title="${safe}">${safe}</td>`;
+    }).join('');
+
+    tr.addEventListener('click', () => toggleSelect(idx, tr));
+    tr.addEventListener('contextmenu', e => showCtxMenu(e, idx));
+    tbody.appendChild(tr);
+  });
+
+  updateCalcButton();
+  if (csvData.length > 0) emptyState.style.display = 'none';
+}
+
+
+
+function sortTable() {
+  filteredIndices.sort((a, b) => {
+    const rA = csvData[a], rB = csvData[b];
+
+    let vA = '', vB = '';
+    switch (sortCol) {
+      case 0:
+        vA = a + 1; vB = b + 1;
+        break;
+      case 1:
+        vA = rA[0] || ''; vB = rB[0] || '';
+        break;
+      case 2:
+        vA = rA[1] || ''; vB = rB[1] || '';
+        break;
+      case 3:
+        vA = rA[2] || ''; vB = rB[2] || '';
+        break;
+      case 4:
+        vA = rA[3] || ''; vB = rB[3] || '';
+        break;
+      case 5:
+        vA = rA[7] || ''; vB = rB[7] || '';
+        break;
+      case 6:
+        vA = parseTimeToMinutes(rA[5]); vB = parseTimeToMinutes(rB[5]);
+        break;
+      case 7:
+        vA = parseTimeToMinutes(rA[8]); vB = parseTimeToMinutes(rB[8]);
+        break;
+      case 8:
+        vA = getRowStopMinutes(rA); vB = getRowStopMinutes(rB);
+        break;
+      case 9:
+        vA = getRowGapToNext(a); vB = getRowGapToNext(b);
+        break;
+      default:
+        return 0;
+    }
+
+    const isNumA = typeof vA === 'number' && !Number.isNaN(vA);
+    const isNumB = typeof vB === 'number' && !Number.isNaN(vB);
+    if (isNumA && isNumB) return sortAsc ? vA - vB : vB - vA;
+    if (isNumA && !isNumB) return sortAsc ? -1 : 1;
+    if (!isNumA && isNumB) return sortAsc ? 1 : -1;
+
+    vA = String(vA).toLowerCase();
+    vB = String(vB).toLowerCase();
+    return sortAsc ? vA.localeCompare(vB) : vB.localeCompare(vA);
+  });
+  renderTable();
+}
+
+
+// ── Selection ──
+function toggleSelect(idx, trEl) {
+  if (selected.has(idx)) {
+    selected.delete(idx); trEl.classList.remove('selected-row');
+  } else {
+    if (selected.size >= 2) {
+      selected.clear();
+      document.querySelectorAll('.selected-row').forEach(el => el.classList.remove('selected-row'));
+    }
+    selected.add(idx); trEl.classList.add('selected-row');
+  }
+  updateCalcButton(); updateStats();
+}
+
+function updateCalcButton() {
+  document.getElementById('calcBtn').disabled = selected.size !== 2;
+}
+
+function updateStats() {
+  document.getElementById('statRows').textContent = csvData.length;
+  document.getElementById('statSelected').textContent = selected.size;
+}
+
+// ── Keyboard ──
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && selected.size === 2 && document.activeElement !== searchBox) {
+    doCalc();
+  }
+});
+
+function doCalc() {
+  if (selected.size === 2) { const [a, b] = [...selected]; calculateGap(a, b); }
+}
+
+// ── Buttons ──
+document.getElementById('calcBtn').addEventListener('click', doCalc);
+document.getElementById('clearBtn').addEventListener('click', () => {
+  selected.clear();
+  document.querySelectorAll('.selected-row').forEach(el => el.classList.remove('selected-row'));
+  clearMap(); hideResult(); updateCalcButton(); updateStats();
+});
+
+// ── Time ──
+function parseTimeToMinutes(t) {
+  if (!t) return NaN;
+  const p = String(t).trim().split(':').map(Number);
+  if (p.length < 2 || p.some(n => Number.isNaN(n))) return NaN;
+  return (p[0]||0)*60 + (p[1]||0) + (p[2]||0)/60;
+}
+
+function diffMinutes(start, end) {
+  const a = parseTimeToMinutes(start);
+  const b = parseTimeToMinutes(end);
+  if (Number.isNaN(a) || Number.isNaN(b)) return null;
+  let diff = b - a;
+  if (diff < 0) diff += 24 * 60;
+  return diff;
+}
+
+function formatMinutes(mins) {
+  return mins == null || Number.isNaN(mins) ? 'N/A' : `${mins.toFixed(1)} min`;
+}
+
+// ── Loading ──
+function showLoading() { document.getElementById('loadingOverlay').classList.add('visible'); }
+function hideLoading() { document.getElementById('loadingOverlay').classList.remove('visible'); }
+
+// ── Gap Calculation ──
+async function calculateGap(i1, i2) {
+  let r1 = csvData[i1], r2 = csvData[i2];
+  if (diffMinutes(r1[5], r2[5]) == null && diffMinutes(r2[5], r1[5]) != null) {
+    [r1, r2] = [r2, r1];
+  } else {
+    const t1 = parseTimeToMinutes(r1[5]);
+    const t2 = parseTimeToMinutes(r2[5]);
+    if (!Number.isNaN(t1) && !Number.isNaN(t2) && t2 < t1) [r1, r2] = [r2, r1];
+  }
+
+  const fromAddr = buildRowAddressQuery(r1), toAddr = buildRowAddressQuery(r2);
+  const fromCity = r1[7], toCity = r2[7];
+  const firstStart = r1[5] || '';
+  const firstEnd = r1[8] || '';
+  const nextStart = r2[5] || '';
+  const stopDuration = diffMinutes(firstStart, firstEnd);
+  const travelGap = diffMinutes(firstEnd, nextStart);
+  const totalMin = diffMinutes(firstStart, nextStart);
+
+  showLoading();
+  try {
+    const [fromPoint, toPoint] = await Promise.all([
+      resolveAddress(fromAddr, { locality: fromCity }),
+      resolveAddress(toAddr, { locality: toCity })
+    ]);
+    const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${fromPoint.coords};${toPoint.coords}?overview=full&geometries=geojson`);
+    const data = await res.json();
+
+    if (data.code !== "Ok") {
+      showResult(`<div class="result-header"><span>Route Error</span><span class="close-btn" onclick="hideResult()">&times;</span></div><div class="result-body"><p style="color:var(--fdx-red)">Routing failed: ${data.code}</p></div>`);
+      return;
+    }
+
+    const route = data.routes[0];
+    const km = (route.distance/1000).toFixed(2);
+    const estDrive = route.duration / 60;
+    const varianceBase = travelGap != null ? travelGap : totalMin;
+    const varianceLabel = travelGap != null ? 'Travel Variance' : 'Start-to-Start Variance';
+    const variance = varianceBase != null ? (varianceBase - estDrive) : null;
+
+    let gc = "gap-low", gl = "On Track";
+    if (variance != null && variance > 10) { gc = "gap-high"; gl = "Delayed"; }
+    else if (variance != null && variance > 5) { gc = "gap-medium"; gl = "Watch"; }
+
+    showResult(`
+      <div class="result-header">
+        <span>Stop + Travel Analysis</span>
+        <span class="close-btn" onclick="hideResult()">&times;</span>
+      </div>
+      <div class="result-body">
+        <div class="result-row"><span class="label">Pair</span><span class="value">Stop ${escapeHtml(r1[0] || '')} → Stop ${escapeHtml(r2[0] || '')}</span></div>
+        <div class="result-row"><span class="label">Delivery Time</span><span class="value">${formatMinutes(stopDuration)}</span></div>
+        <div class="result-row"><span class="label">Travel to Next</span><span class="value">${formatMinutes(travelGap)}</span></div>
+        <div class="result-row"><span class="label">Start-to-Start</span><span class="value">${formatMinutes(totalMin)}</span></div>
+        <div class="result-row"><span class="label">Distance</span><span class="value">${km} km</span></div>
+        <div class="result-row"><span class="label">Est. Drive</span><span class="value">${estDrive.toFixed(1)} min</span></div>
+        <div class="gap-footer">
+          <span class="label">${varianceLabel}</span>
+          <span class="badge ${gc}">${variance == null ? 'N/A' : `${variance.toFixed(1)} min &mdash; ${gl}`}</span>
+        </div>
+      </div>
+    `);
+
+    drawRoute(route.geometry.coordinates.map(c => [c[1],c[0]]), `${fromAddr} (${fromPoint.source})`, `${toAddr} (${toPoint.source})`);
+  } catch (err) {
+    showResult(`<div class="result-header"><span>Error</span><span class="close-btn" onclick="hideResult()">&times;</span></div><div class="result-body"><p style="color:var(--fdx-red)">${escapeHtml(err.message)}</p></div>`);
+  } finally { hideLoading(); }
+}
+
+function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// ── Map ──
+function clearMap() {
+  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+  markers.forEach(m => map.removeLayer(m)); markers = [];
+}
+
+function drawRoute(coords, from, to) {
+  clearMap();
+  routeLine = L.polyline(coords, { color: '#4D148C', weight: 5, opacity: 0.85 }).addTo(map);
+  if (coords.length > 0) {
+    markers.push(L.marker(coords[0], { icon: fdxIcon }).bindPopup(`<div style="font-family:'FedEx Sans',Roboto,sans-serif;font-size:13px"><strong style="color:#4D148C">Origin</strong><br>${escapeHtml(from)}</div>`).addTo(map));
+  }
+  if (coords.length > 1) {
+    markers.push(L.marker(coords[coords.length-1], { icon: fdxIconEnd }).bindPopup(`<div style="font-family:'FedEx Sans',Roboto,sans-serif;font-size:13px"><strong style="color:#FF6200">Destination</strong><br>${escapeHtml(to)}</div>`).addTo(map));
+  }
+  map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
+}
+
+// ── Result Panel ──
+function showResult(html) {
+  const el = document.getElementById('result');
+  el.innerHTML = html; el.classList.add('visible');
+}
+function hideResult() { document.getElementById('result').classList.remove('visible'); }
+
+// ── Context Menu ──
+const ctxMenu = document.getElementById('ctxMenu');
+let ctxRowIdx = null;
+
+function showCtxMenu(e, idx) {
+  e.preventDefault();
+  ctxRowIdx = idx;
+  const isSelected = selected.has(idx);
+  const r = csvData[idx];
+  const driverName = r[1] || 'Row';
+  const addr = r[2] || '';
+
+  // Header
+  document.getElementById('ctxHeader').textContent = `${driverName} — Stop #${r[6] || '?'}`;
+
+  // Show/hide select vs deselect
+  document.getElementById('ctxSelect').style.display = isSelected ? 'none' : 'flex';
+  document.getElementById('ctxDeselect').style.display = isSelected ? 'flex' : 'none';
+
+  // Track enabled only when we have 2 selected (or will have 2 after selecting this one)
+  const willHaveTwo = isSelected ? selected.size === 2 : (selected.size === 1);
+  const trackItem = document.getElementById('ctxTrack');
+  if (willHaveTwo || selected.size === 2) {
+    trackItem.classList.remove('disabled');
+  } else {
+    trackItem.classList.add('disabled');
+  }
+
+  // Position menu at cursor, keep on screen
+  ctxMenu.classList.add('visible');
+  const mw = ctxMenu.offsetWidth, mh = ctxMenu.offsetHeight;
+  let x = e.clientX, y = e.clientY;
+  if (x + mw > window.innerWidth) x = window.innerWidth - mw - 8;
+  if (y + mh > window.innerHeight) y = window.innerHeight - mh - 8;
+  ctxMenu.style.left = x + 'px';
+  ctxMenu.style.top = y + 'px';
+}
+
+function hideCtxMenu() { ctxMenu.classList.remove('visible'); ctxRowIdx = null; }
+
+// Close on click outside or Escape
+document.addEventListener('click', hideCtxMenu);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') hideCtxMenu(); });
+ctxMenu.addEventListener('click', e => e.stopPropagation());
+
+// Select row from context menu
+document.getElementById('ctxSelect').addEventListener('click', () => {
+  if (ctxRowIdx == null) return;
+  if (selected.size >= 2) {
+    selected.clear();
+    document.querySelectorAll('.selected-row').forEach(el => el.classList.remove('selected-row'));
+  }
+  selected.add(ctxRowIdx);
+  renderTable();
+  updateCalcButton(); updateStats();
+  hideCtxMenu();
+});
+
+// Deselect row from context menu
+document.getElementById('ctxDeselect').addEventListener('click', () => {
+  if (ctxRowIdx == null) return;
+  selected.delete(ctxRowIdx);
+  renderTable();
+  updateCalcButton(); updateStats();
+  hideCtxMenu();
+});
+
+// Track gap from context menu
+document.getElementById('ctxTrack').addEventListener('click', () => {
+  hideCtxMenu();
+  if (selected.size === 2) {
+    doCalc();
+  } else if (selected.size === 1 && ctxRowIdx != null && !selected.has(ctxRowIdx)) {
+    // Auto-select this row to make it 2, then track
+    selected.add(ctxRowIdx);
+    renderTable();
+    updateCalcButton(); updateStats();
+    doCalc();
+  }
+});
+
+// Clear from context menu
+document.getElementById('ctxClear').addEventListener('click', () => {
+  hideCtxMenu();
+  selected.clear();
+  document.querySelectorAll('.selected-row').forEach(el => el.classList.remove('selected-row'));
+  clearMap(); hideResult(); updateCalcButton(); updateStats();
+  renderTable();
+});
+
+// ── Init ──
+updateStats();
+
+// ── Settings ──
+let lookupOverlays = null;
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsPanel = document.getElementById('settingsPanel');
+const settingsCloseBtn = document.getElementById('settingsCloseBtn');
+
+function applySettingsFromUI() {
+  CONFIG.resolverMode = document.getElementById('resolverMode').value;
+  CONFIG.useRDCK = document.getElementById('cfgUseRDCK').checked;
+  CONFIG.useRDKB = document.getElementById('cfgUseRDKB').checked;
+  CONFIG.useBC = document.getElementById('cfgUseBC').checked;
+  CONFIG.useNominatim = document.getElementById('cfgUseNominatim').checked;
+  CONFIG.layerParcels = document.getElementById('cfgLayerParcels').checked;
+  CONFIG.layerRDCK = document.getElementById('cfgLayerRDCK').checked;
+  CONFIG.layerRDKB = document.getElementById('cfgLayerRDKB').checked;
+  syncOverlaySet(mainOverlays, map);
+  if (lookupOverlays && lookupMap) syncOverlaySet(lookupOverlays, lookupMap);
+}
+
+function toggleSettingsPanel(force) {
+  const show = typeof force === 'boolean' ? force : !settingsPanel.classList.contains('visible');
+  settingsPanel.classList.toggle('visible', show);
+  settingsBtn.classList.toggle('active', show);
+}
+
+settingsBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  toggleSettingsPanel();
+});
+settingsCloseBtn.addEventListener('click', () => toggleSettingsPanel(false));
+settingsPanel.addEventListener('click', e => e.stopPropagation());
+document.addEventListener('click', () => toggleSettingsPanel(false));
+['resolverMode','cfgUseRDCK','cfgUseRDKB','cfgUseBC','cfgUseNominatim','cfgLayerParcels','cfgLayerRDCK','cfgLayerRDKB'].forEach(id => {
+  document.getElementById(id).addEventListener('change', applySettingsFromUI);
+});
+document.getElementById('clearGeoCacheBtn').addEventListener('click', () => {
+  addressCache.clear();
+});
+
+// ══════════════════════════════════════════════════
+// TAB SWITCHING
+// ══════════════════════════════════════════════════
+let lookupMapInitialized = false;
+let lookupMap, lookupRouteLine, lookupMarkers = [];
+
+document.querySelectorAll('.nav-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    const target = tab.dataset.tab;
+    if (target === 'gap') {
+      document.getElementById('gapPanel').classList.add('active');
+      setTimeout(() => map.invalidateSize(), 100);
+    } else {
+      document.getElementById('lookupPanel').classList.add('active');
+      if (!lookupMapInitialized) initLookupMap();
+      setTimeout(() => lookupMap.invalidateSize(), 100);
+    }
+  });
+});
+
+// ══════════════════════════════════════════════════
+// TAB 2: ROUTE LOOKUP
+// ══════════════════════════════════════════════════
+function initLookupMap() {
+  lookupMap = L.map('lookupMap', { zoomControl: true }).setView([49.28, -117.65], 11);
+  // Satellite
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '&copy; Esri, Maxar, Earthstar Geographics', maxZoom: 19
+  }).addTo(lookupMap);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19, opacity: 0.7
+  }).addTo(lookupMap);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19
+  }).addTo(lookupMap);
+  lookupOverlays = createOverlaySet(lookupMap);
+  syncOverlaySet(lookupOverlays, lookupMap);
+  lookupMapInitialized = true;
+}
+
+function clearLookupMap() {
+  if (!lookupMap) return;
+  if (lookupRouteLine) { lookupMap.removeLayer(lookupRouteLine); lookupRouteLine = null; }
+  lookupMarkers.forEach(m => lookupMap.removeLayer(m));
+  lookupMarkers = [];
+}
+
+// Get coords: either from lat/lon fields or geocode the address
+async function resolvePoint(addrId, latId, lonId) {
+  const lat = document.getElementById(latId).value.trim();
+  const lon = document.getElementById(lonId).value.trim();
+  if (lat && lon) {
+    const fLat = parseFloat(lat), fLon = parseFloat(lon);
+    if (isNaN(fLat) || isNaN(fLon)) throw new Error('Invalid coordinates');
+    return { coords: `${fLon},${fLat}`, label: `${fLat}, ${fLon}`, source: 'Manual coordinates' };
+  }
+  const addr = document.getElementById(addrId).value.trim();
+  if (!addr) throw new Error('Enter an address or coordinates');
+  return resolveAddress(addr);
+}
+
+// Route button
+document.getElementById('lookupBtn').addEventListener('click', async () => {
+  const loading = document.getElementById('lookupLoading');
+  loading.classList.add('visible');
+
+  try {
+    const [ptA, ptB] = await Promise.all([
+      resolvePoint('addrA', 'latA', 'lonA'),
+      resolvePoint('addrB', 'latB', 'lonB')
+    ]);
+
+    const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${ptA.coords};${ptB.coords}?overview=full&geometries=geojson`);
+    const data = await res.json();
+
+    if (data.code !== "Ok") throw new Error(`Routing failed: ${data.code}`);
+
+    const route = data.routes[0];
+    const km = (route.distance / 1000).toFixed(2);
+    const mins = (route.duration / 60).toFixed(1);
+
+    // Show results
+    document.getElementById('lrFrom').textContent = ptA.label;
+    document.getElementById('lrTo').textContent = ptB.label;
+    document.getElementById('lrDist').textContent = `${km} km`;
+    document.getElementById('lrTime').textContent = `${mins} min (${ptA.source} -> ${ptB.source})`;
+    document.getElementById('lookupResult').classList.add('visible');
+
+    // Draw on map
+    clearLookupMap();
+    const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
+    lookupRouteLine = L.polyline(coords, { color: '#4D148C', weight: 5, opacity: 0.85 }).addTo(lookupMap);
+    if (coords.length > 0) {
+      lookupMarkers.push(L.marker(coords[0], { icon: fdxIcon }).bindPopup(`<div style="font-family:'FedEx Sans',Roboto,sans-serif;font-size:13px"><strong style="color:#4D148C">A: Origin</strong><br>${escapeHtml(ptA.label)}</div>`).addTo(lookupMap));
+    }
+    if (coords.length > 1) {
+      lookupMarkers.push(L.marker(coords[coords.length - 1], { icon: fdxIconEnd }).bindPopup(`<div style="font-family:'FedEx Sans',Roboto,sans-serif;font-size:13px"><strong style="color:#FF6200">B: Destination</strong><br>${escapeHtml(ptB.label)}</div>`).addTo(lookupMap));
+    }
+    lookupMap.fitBounds(lookupRouteLine.getBounds(), { padding: [50, 50] });
+
+  } catch (err) {
+    document.getElementById('lrFrom').textContent = '—';
+    document.getElementById('lrTo').textContent = '—';
+    document.getElementById('lrDist').textContent = 'Error';
+    document.getElementById('lrTime').textContent = err.message;
+    document.getElementById('lookupResult').classList.add('visible');
+  } finally {
+    loading.classList.remove('visible');
+  }
+});
+
+// Clear button
+document.getElementById('lookupClearBtn').addEventListener('click', () => {
+  ['addrA','latA','lonA','addrB','latB','lonB'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('lookupResult').classList.remove('visible');
+  clearLookupMap();
+  if (lookupMap) lookupMap.setView([49.28, -117.65], 11);
+});
+
+// Enter key triggers route
+['addrA','addrB','latA','lonA','latB','lonB'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('lookupBtn').click();
+  });
+});
+</script>
+
+</body>
+</html>

@@ -29,12 +29,14 @@
 
     /* ── Navbar ── */
     .navbar{background:var(--fdx-purple);height:60px;display:flex;align-items:center;padding:0 32px;box-shadow:0 2px 6px rgba(0,0,0,.15);flex-shrink:0;z-index:100}
-    .fdx-logo{font-family:var(--fdx-font);font-weight:700;font-size:26px;letter-spacing:-1px;margin-right:20px;cursor:default}
-    .fdx-logo .fed{color:var(--fdx-white)}.fdx-logo .ex{color:var(--fdx-orange)}
+    .fdx-logo{display:flex;align-items:center;margin-right:20px;cursor:default;line-height:0}
+    .fdx-logo img{display:block;height:28px;width:auto}
     .nav-title{color:rgba(255,255,255,.8);font-size:14px;font-weight:500;padding-left:20px;border-left:1px solid rgba(255,255,255,.2)}
     .nav-tabs{display:flex;align-items:center;height:100%;margin-left:auto;gap:0}
     .nav-tab{height:100%;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;color:rgba(255,255,255,.55);cursor:pointer;border-bottom:3px solid transparent;transition:all .15s;white-space:nowrap;text-transform:uppercase;letter-spacing:.5px}
     .nav-tab:hover{color:rgba(255,255,255,.9)}.nav-tab.active{color:#fff;font-weight:700;border-bottom-color:var(--fdx-orange)}
+    .page-link{display:inline-flex;align-items:center;height:36px;padding:0 14px;margin-left:18px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.08);color:#fff;text-decoration:none;font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;transition:all .15s}
+    .page-link:hover{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.45)}
 
     /* ── Main ── */
     .main{flex:1;display:flex;min-height:0}
@@ -144,14 +146,15 @@
 
 <div class="top-bar"></div>
 <nav class="navbar">
-  <div class="fdx-logo"><span class="fed">Map</span><span class="ex">Ex</span></div>
-  <span class="nav-title">MapEx</span>
+  <div class="fdx-logo" aria-label="MapEx"><img src="assets/trace.svg" alt="MapEx"></div>
+  <span class="nav-title">Address Resolution</span>
   <div class="nav-tabs">
     <span class="nav-tab active" data-tab="resolve">Address Resolver</span>
     <span class="nav-tab" data-tab="explore">Map Explorer</span>
     <span class="nav-tab" data-tab="parcel">Parcel Lookup</span>
     <span class="nav-tab" data-tab="log">API Log</span>
   </div>
+  <a class="page-link" href="gap.html">Gap Dashboard</a>
 </nav>
 
 <!-- ════════════════════════════════════════════
