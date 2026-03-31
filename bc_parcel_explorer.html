@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BC Parcel Explorer — Address Resolution</title>
+  <title>MapEx — Address Resolution</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/esri-leaflet@3.0.12/dist/esri-leaflet.js"></script>
@@ -29,7 +29,7 @@
 
     /* ── Navbar ── */
     .navbar{background:var(--fdx-purple);height:60px;display:flex;align-items:center;padding:0 32px;box-shadow:0 2px 6px rgba(0,0,0,.15);flex-shrink:0;z-index:100}
-    .fdx-logo{font-weight:700;font-size:26px;letter-spacing:-1px;margin-right:20px;cursor:default}
+    .fdx-logo{font-family:var(--fdx-font);font-weight:700;font-size:26px;letter-spacing:-1px;margin-right:20px;cursor:default}
     .fdx-logo .fed{color:var(--fdx-white)}.fdx-logo .ex{color:var(--fdx-orange)}
     .nav-title{color:rgba(255,255,255,.8);font-size:14px;font-weight:500;padding-left:20px;border-left:1px solid rgba(255,255,255,.2)}
     .nav-tabs{display:flex;align-items:center;height:100%;margin-left:auto;gap:0}
@@ -144,8 +144,8 @@
 
 <div class="top-bar"></div>
 <nav class="navbar">
-  <div class="fdx-logo"><span class="fed">Fed</span><span class="ex">Ex</span></div>
-  <span class="nav-title">BC Parcel Explorer</span>
+  <div class="fdx-logo"><span class="fed">Map</span><span class="ex">Ex</span></div>
+  <span class="nav-title">MapEx</span>
   <div class="nav-tabs">
     <span class="nav-tab active" data-tab="resolve">Address Resolver</span>
     <span class="nav-tab" data-tab="explore">Map Explorer</span>
