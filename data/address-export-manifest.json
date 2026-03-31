@@ -1,0 +1,14 @@
+{
+  "exportedAt": "2026-03-31T07:57:21.000Z",
+  "counts": {
+    "rdck": 35181,
+    "rdkbTable": 32494,
+    "rdkbPoints": 12855,
+    "rdkbJoined": 32494
+  },
+  "warnings": [],
+  "notes": [
+    "RDCK was exported directly with Node fetch from the public ArcGIS service.",
+    "RDKB was exported through a real browser session because direct non-browser requests to mapping.rdkb.com are Cloudflare-protected."
+  ]
+}

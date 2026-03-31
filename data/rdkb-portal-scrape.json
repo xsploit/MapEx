@@ -1,0 +1,234 @@
+{
+  "scrapedAt": "2026-03-31T07:55:00Z",
+  "portalGallery": [
+    "https://mapping.rdkb.com/portal/home/gallery.html?view=grid&sortOrder=desc&sortField=relevance",
+    "https://mapping.rdkb.com/portal/home/gallery.html?view=grid&sortOrder=desc&sortField=relevance&focus=layers"
+  ],
+  "notes": [
+    "These results were scraped from within a real browser session because direct non-browser requests to mapping.rdkb.com are Cloudflare-protected.",
+    "The portal exposes the public services used by the app as ArcGIS items owned by gis_webmap."
+  ],
+  "portalItems": {
+    "BaseLayersExternal": {
+      "featureServiceItemId": "0a8a78e0bd4448bf90026dbd02e3fd2c",
+      "featureServiceUrl": "https://mapping.rdkb.com/server/rest/services/Planning/BaseLayersExternal/FeatureServer",
+      "mapServiceItemId": "1051e09a1a944d778ae47989567850c5",
+      "mapServiceUrl": "https://mapping.rdkb.com/server/rest/services/Planning/BaseLayersExternal/MapServer"
+    },
+    "Property_Search": {
+      "featureServiceItemId": "41300e3efe82478a9dfeba0dfe1e87db",
+      "featureServiceUrl": "https://mapping.rdkb.com/server/rest/services/Planning/Property_Search/FeatureServer",
+      "mapServiceItemId": "74b40ceb9bc945f19c594d6b923cc106",
+      "mapServiceUrl": "https://mapping.rdkb.com/server/rest/services/Planning/Property_Search/MapServer"
+    }
+  },
+  "services": {
+    "BaseLayersExternal": {
+      "url": "https://mapping.rdkb.com/server/rest/services/Planning/BaseLayersExternal/FeatureServer",
+      "layers": [
+        { "id": 204, "name": "Community Names" },
+        { "id": 251, "name": "Admin Boundaries" },
+        { "id": 252, "name": "Contours (20m)" },
+        { "id": 253, "name": "PMBC Parcels" },
+        { "id": 261, "name": "Address Points" },
+        { "id": 262, "name": "Road Name Labels" },
+        { "id": 265, "name": "Beyond RDKB" },
+        { "id": 268, "name": "Mountain Peaks" }
+      ],
+      "tables": [
+        { "id": 255, "name": "ParcelLink" },
+        { "id": 257, "name": "Legal" },
+        { "id": 259, "name": "Taxes" },
+        { "id": 260, "name": "Address" },
+        { "id": 263, "name": "Assessment" }
+      ]
+    },
+    "Property_Search": {
+      "url": "https://mapping.rdkb.com/server/rest/services/Planning/Property_Search/FeatureServer",
+      "layers": [
+        { "id": 150, "name": "Property Search" }
+      ],
+      "tables": []
+    }
+  },
+  "addressData": {
+    "table": {
+      "id": 260,
+      "url": "https://mapping.rdkb.com/server/rest/services/Planning/BaseLayersExternal/FeatureServer/260",
+      "name": "Address",
+      "type": "Table",
+      "objectIdField": "OBJECTID",
+      "count": 32494,
+      "fields": [
+        "folio",
+        "jurisdiction",
+        "roll",
+        "primary_",
+        "apt_no",
+        "street_no",
+        "street_direction_prefix",
+        "street_name",
+        "street_direction_suffix",
+        "postal_code",
+        "city",
+        "province",
+        "map_ref",
+        "AddressID",
+        "VINTAGE",
+        "OBJECTID"
+      ],
+      "sampleRows": [
+        {
+          "OBJECTID": 2889622,
+          "AddressID": "A00000H6L2",
+          "folio": "21000001000",
+          "apt_no": null,
+          "street_no": "7117",
+          "street_name": "RIVERSIDE DR",
+          "city": "GRAND FORKS"
+        },
+        {
+          "OBJECTID": 2889623,
+          "AddressID": "A00000H6L5",
+          "folio": "21000002010",
+          "apt_no": "101",
+          "street_no": "7129",
+          "street_name": "RIVERSIDE DR",
+          "city": "GRAND FORKS"
+        },
+        {
+          "OBJECTID": 2889624,
+          "AddressID": "A00000H6L6",
+          "folio": "21000002020",
+          "apt_no": "103",
+          "street_no": "7129",
+          "street_name": "RIVERSIDE DR",
+          "city": "GRAND FORKS"
+        }
+      ]
+    },
+    "pointsLayer": {
+      "id": 261,
+      "url": "https://mapping.rdkb.com/server/rest/services/Planning/BaseLayersExternal/FeatureServer/261",
+      "name": "Address Points",
+      "type": "Feature Layer",
+      "objectIdField": "OBJECTID_1",
+      "geometryType": "esriGeometryPoint",
+      "count": 12855,
+      "fields": [
+        "OBJECTID_1",
+        "FULL_ADDRESS",
+        "ADDRESS_POINT_TYPE",
+        "STREET_NUMBER_PREFIX",
+        "StreetNumber",
+        "NumberSuffix",
+        "STREET_DIR_PREFIX",
+        "STREET_NAME",
+        "STREET_TYPE",
+        "STREET_DIR_SUFFIX",
+        "LOCALITY",
+        "LOCALITY_NAME_ALIAS",
+        "ISSUING_AGENCY",
+        "TELUS_COMMUNITY",
+        "POSTAL_CODE",
+        "ALTERNATE_ACCESS",
+        "ADDRESS_NOTES",
+        "BUILDING_TYPE",
+        "BUILDING_NAME",
+        "Building_Address"
+      ],
+      "sampleRows": [
+        {
+          "OBJECTID_1": 4,
+          "FULL_ADDRESS": "3420 CHRISTIAN VALLEY ROAD",
+          "Building_Address": "3420 CHRISTIAN VALLEY ROAD",
+          "LOCALITY": "ELECTORAL AREA E",
+          "Unit_Count": 1,
+          "x": -118.94146693472807,
+          "y": 49.21611314299229
+        },
+        {
+          "OBJECTID_1": 5,
+          "FULL_ADDRESS": "3325 CHRISTIAN VALLEY ROAD",
+          "Building_Address": "3325 CHRISTIAN VALLEY ROAD",
+          "LOCALITY": "ELECTORAL AREA E",
+          "Unit_Count": 1,
+          "x": -118.95094190941796,
+          "y": 49.20962523192217
+        },
+        {
+          "OBJECTID_1": 6,
+          "FULL_ADDRESS": "3220 CHRISTIAN VALLEY ROAD",
+          "Building_Address": "3220 CHRISTIAN VALLEY ROAD",
+          "LOCALITY": "ELECTORAL AREA E",
+          "Unit_Count": 1,
+          "x": -118.96117825324582,
+          "y": 49.199275522478054
+        }
+      ]
+    },
+    "propertyLayer": {
+      "id": 150,
+      "url": "https://mapping.rdkb.com/server/rest/services/Planning/Property_Search/FeatureServer/150",
+      "name": "Property Search",
+      "type": "Feature Layer",
+      "objectIdField": "OBJECTID",
+      "geometryType": "esriGeometryPolygon",
+      "count": 37416,
+      "fields": [
+        "OBJECTID",
+        "PMBCParcelGUID",
+        "PMBC_PID",
+        "PMBC_PIN",
+        "PMBC_ParcelClass",
+        "PMBC_OwnerType",
+        "PMBC_LegalDescription",
+        "Folio",
+        "FullAddress",
+        "apt_no",
+        "street_no",
+        "street_direction_prefix",
+        "street_name",
+        "street_direction_suffix",
+        "postal_code",
+        "city",
+        "province",
+        "AddressID",
+        "TempKey",
+        "GlobalID"
+      ],
+      "sampleRows": [
+        {
+          "OBJECTID": 1,
+          "Folio": "71204225555",
+          "FullAddress": "",
+          "apt_no": null,
+          "street_no": null,
+          "street_name": null,
+          "city": null,
+          "PMBC_PID": 12267651
+        },
+        {
+          "OBJECTID": 2,
+          "Folio": "71205055050",
+          "FullAddress": "3369 EAST LAKE DR , CHRISTINA LAKE",
+          "apt_no": null,
+          "street_no": "3369",
+          "street_name": "EAST LAKE DR",
+          "city": "CHRISTINA LAKE",
+          "PMBC_PID": 10914161
+        },
+        {
+          "OBJECTID": 3,
+          "Folio": "23201045000",
+          "FullAddress": "1140 NELSON AVE , TRAIL",
+          "apt_no": null,
+          "street_no": "1140",
+          "street_name": "NELSON AVE",
+          "city": "TRAIL",
+          "PMBC_PID": 15930441
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,2447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BC Parcel Explorer — Address Resolution</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/esri-leaflet@3.0.12/dist/esri-leaflet.js"></script>
+  <style>
+    @font-face { font-family:'FedEx Sans'; src:url('https://payment.apac.fedex.com/css/assets/fonts/FedExSans_W-Regular.woff') format('woff'); font-weight:400; font-display:swap; }
+    @font-face { font-family:'FedEx Sans'; src:url('https://payment.apac.fedex.com/css/assets/fonts/FedExSans_W-Bold.woff') format('woff'); font-weight:700; font-display:swap; }
+    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+
+    *{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --fdx-purple:#4D148C;--fdx-purple-dark:#3A0F6A;--fdx-purple-hover:#5C1BA6;
+      --fdx-orange:#FF6200;--fdx-orange-hover:#E65800;
+      --fdx-white:#FFFFFF;--fdx-bg:#F2F2F2;
+      --fdx-gray-100:#EBEBEB;--fdx-gray-200:#D9D9D9;--fdx-gray-300:#BFBFBF;
+      --fdx-gray-400:#8C8C8C;--fdx-gray-500:#6B6B6B;--fdx-gray-600:#4D4D4D;
+      --fdx-gray-700:#333333;--fdx-gray-900:#1A1A1A;
+      --fdx-green:#00805A;--fdx-red:#CC0000;
+      --fdx-info-blue:#0066CC;--fdx-info-bg:#E8F0FE;
+      --fdx-font:'FedEx Sans','Roboto','Helvetica Neue',Helvetica,Arial,sans-serif;
+    }
+    body{font-family:var(--fdx-font);background:var(--fdx-bg);color:var(--fdx-gray-900);height:100vh;overflow:hidden;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
+    .top-bar{height:4px;background:var(--fdx-purple);flex-shrink:0}
+
+    /* ── Navbar ── */
+    .navbar{background:var(--fdx-purple);height:60px;display:flex;align-items:center;padding:0 32px;box-shadow:0 2px 6px rgba(0,0,0,.15);flex-shrink:0;z-index:100}
+    .fdx-logo{font-weight:700;font-size:26px;letter-spacing:-1px;margin-right:20px;cursor:default}
+    .fdx-logo .fed{color:var(--fdx-white)}.fdx-logo .ex{color:var(--fdx-orange)}
+    .nav-title{color:rgba(255,255,255,.8);font-size:14px;font-weight:500;padding-left:20px;border-left:1px solid rgba(255,255,255,.2)}
+    .nav-tabs{display:flex;align-items:center;height:100%;margin-left:auto;gap:0}
+    .nav-tab{height:100%;display:flex;align-items:center;padding:0 18px;font-size:12px;font-weight:500;color:rgba(255,255,255,.55);cursor:pointer;border-bottom:3px solid transparent;transition:all .15s;white-space:nowrap;text-transform:uppercase;letter-spacing:.5px}
+    .nav-tab:hover{color:rgba(255,255,255,.9)}.nav-tab.active{color:#fff;font-weight:700;border-bottom-color:var(--fdx-orange)}
+
+    /* ── Main ── */
+    .main{flex:1;display:flex;min-height:0}
+
+    /* ── Panel ── */
+    .panel{width:420px;min-width:380px;background:var(--fdx-white);border-right:1px solid var(--fdx-gray-200);display:flex;flex-direction:column;overflow-y:auto}
+    .panel::-webkit-scrollbar{width:6px}.panel::-webkit-scrollbar-thumb{background:var(--fdx-gray-300);border-radius:3px}
+    .psec{padding:16px 20px;border-bottom:1px solid var(--fdx-gray-100)}
+    .psec h3{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--fdx-purple);margin-bottom:10px}
+    .psec p.hint{font-size:11px;color:var(--fdx-gray-400);margin-bottom:8px}
+
+    /* ── Inputs ── */
+    .fld{margin-bottom:10px}
+    .fld label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--fdx-gray-500);margin-bottom:3px}
+    .fld-row{display:flex;gap:6px}
+    input[type="text"],input[type="number"]{width:100%;height:40px;padding:0 12px;border:2px solid var(--fdx-gray-200);font-size:13px;font-family:inherit;color:var(--fdx-gray-700);outline:none;transition:border-color .2s}
+    input:focus{border-color:var(--fdx-purple)}input::placeholder{color:var(--fdx-gray-400)}
+
+    .btn-o{width:100%;height:44px;background:var(--fdx-orange);color:var(--fdx-white);border:none;font-family:inherit;font-size:14px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;transition:background .15s}
+    .btn-o:hover{background:var(--fdx-orange-hover)}.btn-o:disabled{background:var(--fdx-gray-300);cursor:not-allowed}
+    .btn-s{width:100%;height:36px;background:var(--fdx-white);color:var(--fdx-orange);border:2px solid var(--fdx-orange);font-family:inherit;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all .15s;margin-top:6px}
+    .btn-s:hover{background:var(--fdx-orange);color:var(--fdx-white)}
+
+    /* ── Autocomplete dropdown ── */
+    .ac-wrap{position:relative}
+    .ac-list{position:absolute;top:100%;left:0;right:0;background:var(--fdx-white);border:2px solid var(--fdx-purple);border-top:none;max-height:320px;overflow-y:auto;z-index:9999;display:none;box-shadow:0 6px 20px rgba(0,0,0,.15)}
+    .ac-list.visible{display:block}
+    .ac-item{padding:10px 12px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--fdx-gray-100);display:flex;justify-content:space-between;align-items:center;gap:8px}
+    .ac-item:hover{background:#EDE4F7}
+    .ac-item .ac-addr{color:var(--fdx-gray-900);font-weight:500}
+    .ac-item .ac-comm{color:var(--fdx-gray-400);font-size:11px;white-space:nowrap}
+    .ac-item .ac-folio{color:var(--fdx-purple);font-size:10px;font-weight:700;font-family:'Courier New',monospace}
+    .ac-count{padding:6px 12px;font-size:10px;color:var(--fdx-gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.5px;background:var(--fdx-bg);border-bottom:1px solid var(--fdx-gray-200)}
+
+    /* ── Layer toggles ── */
+    .ltog{display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer}
+    .ltog input[type="checkbox"]{width:16px;height:16px;accent-color:var(--fdx-purple);cursor:pointer}
+    .ltog span{font-size:12px;color:var(--fdx-gray-700)}
+    .ldot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+
+    /* ── Result cards ── */
+    .rcard{background:var(--fdx-bg);border:1px solid var(--fdx-gray-200);border-radius:4px;overflow:hidden;display:none;margin-top:8px}
+    .rcard.vis{display:block}
+    .rcard-h{background:var(--fdx-purple);color:#fff;padding:8px 12px;font-size:12px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+    .rcard-h .cx{cursor:pointer;opacity:.7;font-size:16px}.rcard-h .cx:hover{opacity:1}
+    .rcard-b{padding:8px 12px}
+    .rr{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--fdx-gray-200);font-size:11px}
+    .rr:last-child{border-bottom:none}
+    .rr .rl{color:var(--fdx-gray-500)}.rr .rv{font-weight:600;color:var(--fdx-gray-900);text-align:right;max-width:200px;word-break:break-word}
+
+    /* ── Context menu ── */
+    .ctx{position:fixed;z-index:99999;background:var(--fdx-white);border:1px solid var(--fdx-gray-200);border-radius:4px;box-shadow:0 4px 20px rgba(0,0,0,.18);min-width:220px;padding:4px 0;font-size:12px;display:none}
+    .ctx.vis{display:block}
+    .ctx-hdr{padding:6px 14px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--fdx-gray-400);background:var(--fdx-bg);border-bottom:1px solid var(--fdx-gray-200)}
+    .ctx-item{padding:9px 14px;cursor:pointer;color:var(--fdx-gray-700);display:flex;align-items:center;gap:8px;transition:background .1s}
+    .ctx-item:hover{background:#EDE4F7}
+    .ctx-item.orange{color:var(--fdx-orange);font-weight:700}
+    .ctx-item.orange:hover{background:#FFF3E8}
+    .ctx-sep{height:1px;background:var(--fdx-gray-100);margin:3px 0}
+    .ctx-item svg{width:14px;height:14px;fill:currentColor;flex-shrink:0}
+
+    /* ── Map ── */
+    .map-wrap{flex:1;position:relative}
+    #map{height:100%;width:100%}
+    .coord-disp{position:absolute;top:10px;right:10px;background:rgba(0,0,0,.75);color:#fff;padding:6px 12px;border-radius:4px;font-size:11px;font-family:'Courier New',monospace;z-index:9999;pointer-events:none}
+
+    /* ── Map info card ── */
+    #mapInfo{position:absolute;bottom:16px;left:16px;background:var(--fdx-white);border-radius:4px;box-shadow:0 2px 16px rgba(0,0,0,.15);max-width:380px;min-width:300px;z-index:9999;display:none;overflow:hidden;font-size:12px}
+    #mapInfo.vis{display:block}
+    .rdck-click-popup .leaflet-popup-content-wrapper{background:transparent;box-shadow:none;padding:0;border-radius:0}
+    .rdck-click-popup .leaflet-popup-tip-container{display:none}
+    .rdck-click-popup .leaflet-popup-content{margin:0}
+
+    /* ── Loading ── */
+    .lov{position:absolute;inset:0;background:rgba(255,255,255,.8);display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;z-index:10000}
+    .lov.vis{display:flex}
+    .spinner{width:36px;height:36px;border:4px solid var(--fdx-gray-200);border-top-color:var(--fdx-orange);border-radius:50%;animation:spin .75s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* ── Status badges ── */
+    .badge{display:inline-block;padding:2px 7px;border-radius:2px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+    .badge.ok{background:#E6F4ED;color:var(--fdx-green)}.badge.err{background:#FDEAEA;color:var(--fdx-red)}.badge.ld{background:#FFF3E8;color:var(--fdx-orange)}
+
+    /* ── Log ── */
+    #apiLog{font-family:'Courier New',monospace;font-size:10px;background:#111;color:#0f0;padding:10px;flex:1;overflow-y:auto;line-height:1.6}
+    #apiLog .ll{margin:0;white-space:pre-wrap;word-break:break-all}
+    #apiLog .log-ok{color:#4cff4c}.log-err{color:#ff4c4c}.log-info{color:#6cf}.log-warn{color:#fc6}
+
+    /* ── Tab content ── */
+    .tc{display:none;flex:1;min-height:0}.tc.active{display:flex}
+
+    /* ── Toast ── */
+    .toast{position:fixed;bottom:24px;right:24px;background:var(--fdx-purple);color:#fff;padding:12px 20px;border-radius:4px;font-size:13px;font-weight:500;z-index:99999;box-shadow:0 4px 16px rgba(0,0,0,.2);display:none;animation:slideUp .3s ease}
+    .toast.vis{display:block}
+    @keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+    .leaflet-control-zoom a{background:var(--fdx-white)!important;color:var(--fdx-purple)!important;border-color:var(--fdx-gray-200)!important}
+  </style>
+</head>
+<body>
+
+<div class="top-bar"></div>
+<nav class="navbar">
+  <div class="fdx-logo"><span class="fed">Fed</span><span class="ex">Ex</span></div>
+  <span class="nav-title">BC Parcel Explorer</span>
+  <div class="nav-tabs">
+    <span class="nav-tab active" data-tab="resolve">Address Resolver</span>
+    <span class="nav-tab" data-tab="explore">Map Explorer</span>
+    <span class="nav-tab" data-tab="parcel">Parcel Lookup</span>
+    <span class="nav-tab" data-tab="log">API Log</span>
+  </div>
+</nav>
+
+<!-- ════════════════════════════════════════════
+     TAB 1: ADDRESS RESOLVER (main feature)
+     ════════════════════════════════════════════ -->
+<div class="tc active" data-tab="resolve">
+  <div class="panel">
+    <div class="psec">
+      <h3>Address Resolution</h3>
+      <p class="hint">Type an address, street number, or street name. Results come live from RDCK and RDKB address data. Click a result to plot it.</p>
+      <div class="fld ac-wrap">
+        <label>Search Address</label>
+        <input type="text" id="acInput" placeholder="e.g. 1545 or Columbia or 460 Columbia Ave">
+        <div class="ac-list" id="acList"></div>
+      </div>
+      <div class="fld ac-wrap">
+        <label>Search by Street # Only</label>
+        <div class="fld-row">
+          <input type="text" id="acNum" placeholder="e.g. 1545" style="width:120px">
+          <input type="text" id="acStreet" placeholder="Street name (optional)">
+        </div>
+      </div>
+      <button class="btn-o" id="acSearchBtn">SEARCH ADDRESSES</button>
+      <button class="btn-s" id="acBcGeoBtn">FALLBACK: BC GEOCODER</button>
+    </div>
+
+    <div class="psec">
+      <h3>Map Layers</h3>
+      <div class="ltog"><input type="checkbox" id="mSat" checked><div class="ldot" style="background:#2563EB"></div><span>Satellite Imagery</span></div>
+      <div class="ltog"><input type="checkbox" id="mRoads" checked><div class="ldot" style="background:#666"></div><span>Road Labels</span></div>
+      <div class="ltog"><input type="checkbox" id="mParcelsWMS" checked><div class="ldot" style="background:#FF6200"></div><span>ParcelMap BC (WMS)</span></div>
+      <div class="ltog"><input type="checkbox" id="mRDCK"><div class="ldot" style="background:#4D148C"></div><span>RDCK Public Map Service</span></div>
+      <div class="ltog"><input type="checkbox" id="mRDKBProp"><div class="ldot" style="background:#00805A"></div><span>RDKB Property Search</span></div>
+      <div class="ltog"><input type="checkbox" id="mRDKBParcels"><div class="ldot" style="background:#0066CC"></div><span>RDKB PMBC Parcels</span></div>
+      <div class="ltog"><input type="checkbox" id="mRDKBAddr"><div class="ldot" style="background:#F4B400"></div><span>RDKB Address Points</span></div>
+      <p class="hint">These toggles control map overlays only.</p>
+    </div>
+
+    <div class="psec">
+      <h3>Search Source</h3>
+      <div class="ltog"><input type="checkbox" id="mAutoSource" checked><div class="ldot" style="background:linear-gradient(135deg,#4D148C 0%,#00805A 100%)"></div><span id="mAutoSourceLabel">Auto-select RDCK / RDKB source</span></div>
+      <p class="hint" id="mAutoSourceHint">Auto mode tries both regional datasets and prefers the last successful region. Turn it off to lock searches and map clicks to the last region you picked.</p>
+    </div>
+
+    <div class="psec">
+      <h3>Selected Address</h3>
+      <div class="rcard vis" id="selCard">
+        <div class="rcard-h"><span>No address selected</span></div>
+        <div class="rcard-b" id="selBody">
+          <p style="font-size:11px;color:var(--fdx-gray-400)">Search and click an address to see details here.</p>
+        </div>
+      </div>
+      <button class="btn-s" id="selStreetViewBtn" style="display:none">OPEN STREET VIEW</button>
+    </div>
+
+    <div class="psec">
+      <h3>Parcel Details</h3>
+      <div class="rcard" id="parcelCard">
+        <div class="rcard-h">
+          <span>Cadastre Info</span>
+          <span class="cx" onclick="document.getElementById('parcelCard').classList.remove('vis')">&times;</span>
+        </div>
+        <div class="rcard-b" id="parcelBody">—</div>
+      </div>
+    </div>
+
+    <div class="psec">
+      <h3>API Status</h3>
+      <div style="display:flex;flex-direction:column;gap:5px" id="apiStatus">
+        <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px">RDCK Address Points</span><span class="badge ld" id="sRDCKAddr">...</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px">RDCK Cadastre</span><span class="badge ld" id="sRDCKCad">...</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px">BC Geocoder</span><span class="badge ld" id="sBCGeo">...</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px">ParcelMap BC WMS</span><span class="badge ld" id="sWMS">...</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px">OSRM Router</span><span class="badge ld" id="sOSRM">...</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="map-wrap">
+    <div id="map"></div>
+    <div class="coord-disp" id="coordDisp">49.3267, -117.6593</div>
+    <div id="mapInfo"></div>
+    <div class="lov" id="mapLov"><div class="spinner"></div><span style="font-size:12px;color:var(--fdx-gray-500)">Querying...</span></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     TAB 2: MAP EXPLORER
+     ════════════════════════════════════════════ -->
+<div class="tc" data-tab="explore">
+  <div class="panel">
+    <div class="psec">
+      <h3>Map Layers</h3>
+      <div class="ltog"><input type="checkbox" id="lSat" checked><div class="ldot" style="background:#2563EB"></div><span>Satellite Imagery</span></div>
+      <div class="ltog"><input type="checkbox" id="lRoads" checked><div class="ldot" style="background:#666"></div><span>Road Labels</span></div>
+      <div class="ltog"><input type="checkbox" id="lParcelsWMS"><div class="ldot" style="background:#FF6200"></div><span>ParcelMap BC (WMS)</span></div>
+      <div class="ltog"><input type="checkbox" id="lRDCK"><div class="ldot" style="background:#4D148C"></div><span>RDCK Public Map Service</span></div>
+      <div class="ltog"><input type="checkbox" id="lRDKBProp"><div class="ldot" style="background:#00805A"></div><span>RDKB Property Search</span></div>
+      <div class="ltog"><input type="checkbox" id="lRDKBParcels"><div class="ldot" style="background:#0066CC"></div><span>RDKB PMBC Parcels</span></div>
+    </div>
+    <div class="psec">
+      <h3>Quick Navigate</h3>
+      <div class="fld">
+        <label>Jump to Address (BC Geocoder)</label>
+        <input type="text" id="expAddr" placeholder="460 Columbia Ave, Castlegar, BC">
+      </div>
+      <button class="btn-o" id="expGoBtn">GO</button>
+    </div>
+    <div class="psec">
+      <h3>Click Info</h3>
+      <p class="hint">Click map to query RDCK address/cadastre, RDKB property search, and ParcelMap BC at that point.</p>
+      <div class="rcard" id="expClickCard">
+        <div class="rcard-h"><span>Parcel Info</span><span class="cx" onclick="this.closest('.rcard').classList.remove('vis')">&times;</span></div>
+        <div class="rcard-b" id="expClickBody">—</div>
+      </div>
+    </div>
+  </div>
+  <div class="map-wrap">
+    <div id="expMap"></div>
+    <div class="lov" id="expLov"><div class="spinner"></div><span style="font-size:12px;color:var(--fdx-gray-500)">Querying...</span></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     TAB 3: PARCEL LOOKUP
+     ════════════════════════════════════════════ -->
+<div class="tc" data-tab="parcel">
+  <div class="panel">
+    <div class="psec">
+      <h3>RDCK Cadastre Search</h3>
+      <p class="hint">Search the RDCK cadastre layer directly. Get PID, assessed values, actual use, lot size.</p>
+      <div class="fld"><label>Site Address (partial ok)</label><input type="text" id="cadAddr" placeholder="e.g. Columbia Ave"></div>
+      <div class="fld"><label>Community</label><input type="text" id="cadCity" placeholder="e.g. CASTLEGAR" value="CASTLEGAR"></div>
+      <button class="btn-o" id="cadSearchBtn">SEARCH CADASTRE</button>
+      <div style="text-align:center;font-size:10px;color:var(--fdx-gray-400);font-weight:700;padding:10px 0">— or —</div>
+      <div class="fld"><label>PID</label><input type="text" id="cadPID" placeholder="e.g. 015-127-273"></div>
+      <button class="btn-o" id="cadPIDBtn">LOOKUP PID</button>
+    </div>
+    <div class="psec">
+      <h3>Results <span id="cadCount" style="color:var(--fdx-orange)">(0)</span></h3>
+      <div id="cadResults" style="max-height:400px;overflow-y:auto;font-size:11px">
+        <p style="color:var(--fdx-gray-400)">Run a search to see results.</p>
+      </div>
+    </div>
+  </div>
+  <div class="map-wrap">
+    <div id="cadMap"></div>
+    <div class="lov" id="cadLov"><div class="spinner"></div><span style="font-size:12px;color:var(--fdx-gray-500)">Querying...</span></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     TAB 4: API LOG
+     ════════════════════════════════════════════ -->
+<div class="tc" data-tab="log">
+  <div style="flex:1;display:flex;flex-direction:column">
+    <div style="padding:12px 20px;background:var(--fdx-white);border-bottom:1px solid var(--fdx-gray-200);display:flex;justify-content:space-between;align-items:center">
+      <h3 style="font-size:12px;font-weight:700;color:var(--fdx-purple)">API REQUEST LOG</h3>
+      <button class="btn-s" style="width:auto;padding:0 14px;margin:0" onclick="document.getElementById('apiLog').innerHTML=''">CLEAR</button>
+    </div>
+    <div id="apiLog"></div>
+  </div>
+</div>
+
+<!-- ═══ RIGHT-CLICK CONTEXT MENU ═══ -->
+<div class="ctx" id="mapCtx">
+  <div class="ctx-hdr" id="mapCtxCoords">49.3267, -117.6593</div>
+  <div class="ctx-item" id="ctxCopyDD"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>Copy Coordinates (DD)</div>
+  <div class="ctx-item" id="ctxCopyDMS"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>Copy as DMS</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item orange" id="ctxLookupAddr"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>Lookup Address Here</div>
+  <div class="ctx-item" id="ctxQueryParcel"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>Query Parcel (WFS)</div>
+  <div class="ctx-item" id="ctxReverseGeo"><svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0013 3.06V1h-2v2.06A8.994 8.994 0 003.06 11H1v2h2.06A8.994 8.994 0 0011 20.94V23h2v-2.06A8.994 8.994 0 0020.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>Reverse Geocode (BC)</div>
+  <div class="ctx-item" id="ctxStreetView"><svg viewBox="0 0 24 24"><path d="M12 2a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 8c-3.87 0-7 1.79-7 4v3h2v5h2v-5h6v5h2v-5h2v-3c0-2.21-3.13-4-7-4z"/></svg>Open Street View Here</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" id="ctxCenterHere"><svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0013 3.06V1h-2v2.06A8.994 8.994 0 003.06 11H1v2h2.06A8.994 8.994 0 0011 20.94V23h2v-2.06A8.994 8.994 0 0020.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>Center Map Here</div>
+</div>
+
+<!-- ═══ Toast ═══ -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════
+// CONSTANTS
+// ══════════════════════════════════════
+const RDCK_BASE = 'https://gis.rdck.bc.ca/server/rest/services/RDCK_Public_Web_Map_MIL/MapServer';
+const RDCK_ADDR = RDCK_BASE + '/0';   // Address Points
+const RDCK_CAD  = RDCK_BASE + '/8';   // Cadastre
+const RDKB_PROPERTY_ROOT = 'https://mapping.rdkb.com/server/rest/services/Planning/Property_Search/MapServer';
+const RDKB_PROPERTY = RDKB_PROPERTY_ROOT + '/150';
+const RDKB_BASE_EXT = 'https://mapping.rdkb.com/server/rest/services/Planning/BaseLayersExternal/MapServer';
+const RDKB_ADDRESS_TABLE = 'https://mapping.rdkb.com/server/rest/services/Planning/BaseLayersExternal/FeatureServer/260';
+const RDKB_ADDRESS_POINTS = 'https://mapping.rdkb.com/server/rest/services/Planning/BaseLayersExternal/FeatureServer/261';
+const RDKB_PARCELS = 'https://mapping.rdkb.com/server/rest/services/Planning/BaseLayersExternal/FeatureServer/253';
+const BC_GEO    = 'https://geocoder.api.gov.bc.ca';
+const BC_WFS    = 'https://openmaps.gov.bc.ca/geo/pub/ows';
+const CENTER    = [49.3267, -117.6593];
+const PERF = { autocompleteDebounceMs: 550, maxLogLines: 180, healthCheckDelayMs: 1800 };
+const LOCAL_AUTOCOMPLETE_MANIFEST_URL = 'data/address-export-manifest.json';
+const LOCAL_RDCK_DATA_URL = 'data/rdck-addresses.json';
+const LOCAL_RDKB_DATA_URL = 'data/rdkb-addresses.json';
+const LOCAL_CACHE_DB_NAME = 'mapex-local-cache';
+const LOCAL_CACHE_DB_VERSION = 1;
+const LOCAL_CACHE_STORE = 'kv';
+const LOCAL_CACHE_VERSION_KEY = 'autocompleteVersion';
+const LOCAL_CACHE_ROWS_KEY = 'autocompleteRows';
+const LOCAL_AUTOCOMPLETE_LIMIT = 20;
+
+// ══════════════════════════════════════
+// LOGGING
+// ══════════════════════════════════════
+function alog(msg, type='info') {
+  const el = document.getElementById('apiLog');
+  const p = document.createElement('p');
+  p.className = `ll log-${type}`;
+  p.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  el.appendChild(p);
+  while (el.childElementCount > PERF.maxLogLines) el.removeChild(el.firstChild);
+  el.scrollTop = el.scrollHeight;
+}
+
+// Wrap fetch
+const _f = window.fetch;
+window.fetch = async function(url, opts) {
+  const short = typeof url === 'string' ? (url.length > 100 ? url.substring(0,100)+'...' : url) : 'Request';
+  alog(`GET ${short}`, 'info');
+  const t = Date.now();
+  try {
+    const r = await _f.call(this, url, opts);
+    alog(`${r.status} ${r.ok?'OK':'FAIL'} (${Date.now()-t}ms)`, r.ok?'ok':'err');
+    return r;
+  } catch(e) {
+    if (e && e.name === 'AbortError') throw e;
+    alog(`FAILED: ${e.message}`, 'err');
+    throw e;
+  }
+};
+
+// ══════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════
+function toast(msg, ms=2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('vis');
+  setTimeout(() => t.classList.remove('vis'), ms);
+}
+
+async function copyTextToClipboard(text) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (e) {}
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  ta.style.top = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  ta.setSelectionRange(0, ta.value.length);
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) {}
+  document.body.removeChild(ta);
+  return ok;
+}
+
+function makeAddressDisplay(parts = {}) {
+  const suite = String(parts.suite || '').trim();
+  const address = String(parts.address || '').trim();
+  return suite ? `${suite}-${address}` : (address || '—');
+}
+
+// ══════════════════════════════════════
+// MAP SETUP (Tab 1 — Address Resolver)
+// ══════════════════════════════════════
+const map = L.map('map', { updateWhenIdle:true }).setView(CENTER, 14);
+const mainSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, attribution:'Esri', updateWhenIdle:true, keepBuffer:1}).addTo(map);
+const mainRoadTransport = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, opacity:.7, updateWhenIdle:true, keepBuffer:1});
+const mainRoadPlaces = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, updateWhenIdle:true, keepBuffer:1});
+const mainRoads = L.layerGroup([mainRoadTransport, mainRoadPlaces]).addTo(map);
+
+const mainParcelsWMS = L.tileLayer.wms(BC_WFS, {
+  layers:'pub:WHSE_CADASTRE.PMBC_PARCEL_FABRIC_POLY_SVW',
+  format:'image/png', transparent:true, opacity:.4, maxZoom:19, updateWhenIdle:true, keepBuffer:1
+}).addTo(map);
+
+let mainRDCK = null, mainRDKBProperty = null, mainRDKBParcels = null, mainRDKBAddressPoints = null, mainRDCKLayerGroup = null;
+const mainLayerControllers = new Map();
+try { mainRDCK = L.esri.dynamicMapLayer({url:RDCK_BASE, opacity:1}); } catch(e) {}
+try { mainRDKBProperty = L.esri.dynamicMapLayer({url:RDKB_PROPERTY_ROOT, opacity:.45}); } catch(e) {}
+let mainRDCKHitTargets = null;
+let rdckIgnoreMapClickUntil = 0;
+
+function deactivateMainLayer(id) {
+  const controller = mainLayerControllers.get(id);
+  if (!controller) return;
+  controller.el.checked = false;
+  controller.removeLayer();
+}
+
+function enforceMainRegionLayer(region) {
+  if (region === 'rdck') {
+    ['mRDKBProp', 'mRDKBParcels', 'mRDKBAddr'].forEach(deactivateMainLayer);
+    setRegionBias('rdck');
+    return;
+  }
+  if (region === 'rdkb') {
+    ['mRDCK'].forEach(deactivateMainLayer);
+    setRegionBias('rdkb');
+  }
+}
+
+function ensureMainRDCKHitTargets() {
+  if (mainRDCKHitTargets) return mainRDCKHitTargets;
+  try {
+    mainRDCKHitTargets = L.esri.featureLayer({
+      url: RDCK_ADDR,
+      fields: ['OBJECTID', 'ADDRESS', 'SUITE', 'STREETNO', 'STRNAME', 'STRTYPE', 'COMM', 'FOLIO'],
+      pointToLayer: (geojson, latlng) => {
+        const marker = L.circleMarker(latlng, {
+          radius: 9,
+          color: '#57D3FF',
+          weight: 0,
+          opacity: 0,
+          fillColor: '#57D3FF',
+          fillOpacity: 0
+        });
+        marker.__rdckBaseStyle = {
+          radius: 9,
+          color: '#57D3FF',
+          weight: 0,
+          opacity: 0,
+          fillColor: '#57D3FF',
+          fillOpacity: 0
+        };
+        return marker;
+      }
+    });
+    mainRDCKHitTargets.on('mouseover', e => {
+      if (!e.layer) return;
+      e.layer.setStyle({
+        color: '#57D3FF',
+        weight: 2,
+        opacity: 1,
+        fillColor: '#57D3FF',
+        fillOpacity: 0.2
+      });
+      if (e.layer.setRadius) e.layer.setRadius(10);
+      map.getContainer().style.cursor = 'pointer';
+    });
+    mainRDCKHitTargets.on('mouseout', e => {
+      if (!e.layer) return;
+      const base = e.layer.__rdckBaseStyle || {};
+      e.layer.setStyle({
+        color: base.color || '#57D3FF',
+        weight: base.weight || 0,
+        opacity: base.opacity || 0,
+        fillColor: base.fillColor || '#57D3FF',
+        fillOpacity: base.fillOpacity || 0
+      });
+      if (e.layer.setRadius) e.layer.setRadius(base.radius || 9);
+      map.getContainer().style.cursor = '';
+    });
+    mainRDCKHitTargets.on('click', async e => {
+      rdckIgnoreMapClickUntil = Date.now() + 500;
+      const ll = e.layer && e.layer.getLatLng ? e.layer.getLatLng() : e.latlng;
+      const props = (e.layer && e.layer.feature && e.layer.feature.properties) || {};
+      if (e.originalEvent && e.originalEvent.stopPropagation) e.originalEvent.stopPropagation();
+      showLov('mapLov');
+      try {
+        const pages = await fetchRDCKPopupPages(ll.lat, ll.lng, {
+          addressObjectId: props.OBJECTID,
+          addressFirst: true,
+          onlySelectedAddress: true
+        });
+        if (!pages.length) return;
+        rdckPopupState = {
+          anchor: [ll.lat, ll.lng],
+          pages,
+          index: 0
+        };
+        renderRDCKPopup();
+      } catch (err) {
+        alog('RDCK point click failed: ' + err.message, 'err');
+      } finally {
+        hideLov('mapLov');
+      }
+    });
+  } catch(e) {}
+  return mainRDCKHitTargets;
+}
+
+function ensureMainRDCKLayer() {
+  if (mainRDCKLayerGroup) return mainRDCKLayerGroup;
+  const hits = ensureMainRDCKHitTargets();
+  if (!mainRDCK || !hits) return mainRDCK || hits;
+  mainRDCKLayerGroup = L.layerGroup([mainRDCK, hits]);
+  return mainRDCKLayerGroup;
+}
+
+function ensureMainRDKBParcels() {
+  if (mainRDKBParcels) return mainRDKBParcels;
+  try {
+    mainRDKBParcels = L.esri.featureLayer({
+      url:RDKB_PARCELS,
+      style: () => ({color:'#0066CC', weight:1.5, fillOpacity:0})
+    });
+  } catch(e) {}
+  return mainRDKBParcels;
+}
+
+function ensureMainRDKBAddressPoints() {
+  if (mainRDKBAddressPoints) return mainRDKBAddressPoints;
+  try {
+    mainRDKBAddressPoints = L.esri.featureLayer({
+      url:RDKB_ADDRESS_POINTS,
+      fields: ['OBJECTID_1', 'FULL_ADDRESS', 'Unit_Count', 'Building_Address', 'BUILDING_NAME', 'LOCALITY', 'ADDRESS_POINT_TYPE'],
+      pointToLayer: (geojson, latlng) => L.circleMarker(latlng, {
+        radius: 4,
+        color: '#6B4F00',
+        weight: 1,
+        fillColor: '#F4B400',
+        fillOpacity: .95
+      })
+    });
+    mainRDKBAddressPoints.bindPopup(layer => {
+      const p = (layer && layer.feature && layer.feature.properties) || {};
+      const rows = [
+        ['Full Address', p.FULL_ADDRESS],
+        ['Unit Count', p.Unit_Count],
+        ['Building Address', p.Building_Address],
+        ['Building Name', p.BUILDING_NAME],
+        ['Locality', p.LOCALITY],
+        ['Address Type', p.ADDRESS_POINT_TYPE]
+      ];
+      return `<div style="font-family:var(--fdx-font);font-size:12px;min-width:220px">${rows.map(([l,v])=>`<div class="rr"><span class="rl">${esc(l)}</span><span class="rv">${esc(String(v||'—'))}</span></div>`).join('')}</div>`;
+    });
+  } catch(e) {}
+  return mainRDKBAddressPoints;
+}
+
+const PIN_A = L.divIcon({className:'',html:`<svg width="30" height="42" viewBox="0 0 30 42"><path d="M15 0C6.7 0 0 6.7 0 15c0 11.25 15 27 15 27s15-15.75 15-27C30 6.7 23.3 0 15 0z" fill="#4D148C"/><circle cx="15" cy="15" r="7" fill="#FF6200"/><circle cx="15" cy="15" r="3.5" fill="#fff"/></svg>`,iconSize:[30,42],iconAnchor:[15,42],popupAnchor:[0,-42]});
+const PIN_B = L.divIcon({className:'',html:`<svg width="30" height="42" viewBox="0 0 30 42"><path d="M15 0C6.7 0 0 6.7 0 15c0 11.25 15 27 15 27s15-15.75 15-27C30 6.7 23.3 0 15 0z" fill="#FF6200"/><circle cx="15" cy="15" r="7" fill="#4D148C"/><circle cx="15" cy="15" r="3.5" fill="#fff"/></svg>`,iconSize:[30,42],iconAnchor:[15,42],popupAnchor:[0,-42]});
+
+let mapMarkers = [], mapPolys = [];
+let selectedAddressState = null;
+function clearMapOverlays() { mapMarkers.forEach(m=>map.removeLayer(m)); mapMarkers=[]; mapPolys.forEach(p=>map.removeLayer(p)); mapPolys=[]; }
+function calcDistSq(lat1, lon1, lat2, lon2) {
+  const dLat = lat1 - lat2;
+  const dLon = lon1 - lon2;
+  return (dLat * dLat) + (dLon * dLon);
+}
+
+function buildStreetViewUrl(lat, lon) {
+  return `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${encodeURIComponent(lat + ',' + lon)}`;
+}
+
+function openStreetView(lat, lon) {
+  if (typeof lat !== 'number' || typeof lon !== 'number') {
+    toast('No coordinates for Street View');
+    return false;
+  }
+  const win = window.open(buildStreetViewUrl(lat, lon), '_blank', 'noopener');
+  if (!win) {
+    toast('Popup blocked');
+    return false;
+  }
+  return true;
+}
+let rdckPopup = null;
+let rdckPopupHighlight = null;
+let rdckPopupState = null;
+
+function clearRDCKPopupHighlight() {
+  if (rdckPopupHighlight) {
+    map.removeLayer(rdckPopupHighlight);
+    rdckPopupHighlight = null;
+  }
+}
+
+function drawRDCKPopupHighlight(page) {
+  clearRDCKPopupHighlight();
+  if (!page) return;
+  const style = page.highlightStyle || {};
+  if (page.geometry && page.geometry.rings) {
+    const latlngs = page.geometry.rings.map(ring => ring.map(pt => [pt[1], pt[0]]));
+    rdckPopupHighlight = L.polygon(latlngs, {
+      color: style.color || '#57D3FF',
+      weight: style.weight || 2.5,
+      fillColor: style.fillColor || style.color || '#57D3FF',
+      fillOpacity: style.fillOpacity != null ? style.fillOpacity : 0
+    }).addTo(map);
+    return;
+  }
+  if (typeof page.lat === 'number' && typeof page.lon === 'number') {
+    rdckPopupHighlight = L.circleMarker([page.lat, page.lon], {
+      radius: style.radius || 7,
+      color: style.color || '#57D3FF',
+      weight: style.weight || 2,
+      fillColor: style.fillColor || style.color || '#57D3FF',
+      fillOpacity: style.fillOpacity != null ? style.fillOpacity : 0.18
+    }).addTo(map);
+  }
+}
+
+function buildRDCKPopupHTML() {
+  if (!rdckPopupState || !rdckPopupState.pages.length) return '';
+  const { pages, index } = rdckPopupState;
+  const page = pages[index];
+  const nav = pages.length > 1
+    ? `<button type="button" onclick="cycleRDCKPopup(-1)" style="border:0;background:transparent;color:#fff;font-size:18px;line-height:1;cursor:pointer;padding:0 6px">&#9664;</button><span style="font-size:12px;color:#fff">${index + 1} of ${pages.length}</span><button type="button" onclick="cycleRDCKPopup(1)" style="border:0;background:transparent;color:#fff;font-size:18px;line-height:1;cursor:pointer;padding:0 6px">&#9654;</button>`
+    : `<span style="font-size:12px;color:#fff">1 of 1</span>`;
+  const rows = page.rows.map(([label, value]) =>
+    `<div class="rr"><span class="rl">${esc(label)}</span><span class="rv">${esc(String(value || '—'))}</span></div>`
+  ).join('');
+  return `<div style="font-family:var(--fdx-font);font-size:12px;min-width:320px;max-width:420px">
+    <div style="background:#3b3b3b;color:#fff;padding:8px 12px;display:flex;justify-content:space-between;align-items:center">
+      <div style="display:flex;align-items:center;gap:6px">${nav}</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button type="button" onclick="zoomToRDCKPopup()" style="border:0;background:transparent;color:#fff;font-size:18px;line-height:1;cursor:pointer;padding:0">&#9723;</button>
+        <button type="button" onclick="closeRDCKPopup()" style="border:0;background:transparent;color:#fff;font-size:22px;line-height:1;cursor:pointer;padding:0">&times;</button>
+      </div>
+    </div>
+    <div style="background:#f3f3f3;padding:14px 16px">
+      <div style="font-size:17px;color:#173f72;margin-bottom:10px">${esc(page.title)}</div>
+      <div style="border-top:1px solid #777;margin-bottom:12px"></div>
+      ${rows}
+      <div style="margin-top:12px"><a href="#" onclick="zoomToRDCKPopup(); return false;" style="color:#2c6fb8;text-decoration:underline">Zoom to</a></div>
+    </div>
+  </div>`;
+}
+
+function renderRDCKPopup() {
+  if (!rdckPopupState || !rdckPopupState.pages.length) return;
+  const page = rdckPopupState.pages[rdckPopupState.index];
+  if (!rdckPopup) {
+    rdckPopup = L.popup({ closeButton:false, maxWidth:440, className:'rdck-click-popup', autoPan:true });
+  }
+  rdckPopup
+    .setLatLng(rdckPopupState.anchor)
+    .setContent(buildRDCKPopupHTML())
+    .openOn(map);
+  drawRDCKPopupHighlight(page);
+}
+
+window.closeRDCKPopup = function() {
+  map.closePopup(rdckPopup);
+  rdckPopupState = null;
+  clearRDCKPopupHighlight();
+};
+
+window.cycleRDCKPopup = function(delta) {
+  if (!rdckPopupState || !rdckPopupState.pages.length) return;
+  const total = rdckPopupState.pages.length;
+  rdckPopupState.index = (rdckPopupState.index + delta + total) % total;
+  renderRDCKPopup();
+};
+
+window.zoomToRDCKPopup = function() {
+  if (!rdckPopupState || !rdckPopupState.pages.length) return;
+  const page = rdckPopupState.pages[rdckPopupState.index];
+  if (page.geometry && page.geometry.rings) {
+    const bounds = L.polygon(page.geometry.rings.map(ring => ring.map(pt => [pt[1], pt[0]]))).getBounds();
+    map.fitBounds(bounds.pad(0.15));
+    return;
+  }
+  if (typeof page.lat === 'number' && typeof page.lon === 'number') {
+    map.setView([page.lat, page.lon], Math.max(map.getZoom(), 18), {animate:false});
+  }
+};
+
+function sortByDistance(features, lat, lon) {
+  return [...(features || [])].sort((a, b) => {
+    const ag = a.geometry || {};
+    const bg = b.geometry || {};
+    return calcDistSq(lat, lon, ag.y || 0, ag.x || 0) - calcDistSq(lat, lon, bg.y || 0, bg.x || 0);
+  });
+}
+
+async function fetchRDCKPopupPages(lat, lon, options = {}) {
+  const { addressObjectId = null, addressFirst = false, onlySelectedAddress = false } = options;
+  const [addrResp, cadResp] = await Promise.all([
+    fetch(`${RDCK_ADDR}/query?geometry=${lon},${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&distance=35&units=esriSRUnit_Meter&outFields=OBJECTID,ADDRESS,SUITE,STREETNO,STRNAME,STRTYPE,COMM,FOLIO,last_edited_date&returnGeometry=true&outSR=4326&f=json&resultRecordCount=10&orderByFields=ADDRESS,SUITE`),
+    fetch(`${RDCK_CAD}/query?geometry=${lon},${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&distance=8&units=esriSRUnit_Meter&outFields=OBJECTID,PID,Site_Address,Folio,Actual_Use,Plan_Number,LTO_Number,Lot,Block,District_Lot,Land_District,Legal_Long,City&returnGeometry=true&outSR=4326&f=json&resultRecordCount=5`)
+  ]);
+  const [addrData, cadData] = await Promise.all([addrResp.json(), cadResp.json()]);
+  let addrFeatures = sortByDistance(addrData.features || [], lat, lon);
+  if (addressObjectId != null) {
+    addrFeatures = addrFeatures.sort((a, b) => {
+      const ao = a.attributes || {};
+      const bo = b.attributes || {};
+      const aMatch = Number(ao.OBJECTID) === Number(addressObjectId) ? -1 : 0;
+      const bMatch = Number(bo.OBJECTID) === Number(addressObjectId) ? -1 : 0;
+      return aMatch - bMatch;
+    });
+    if (onlySelectedAddress) {
+      const matched = addrFeatures.find(f => Number((f.attributes || {}).OBJECTID) === Number(addressObjectId));
+      if (matched) addrFeatures = [matched];
+    }
+  }
+  const cadFeatures = cadData.features || [];
+  const cadPages = [];
+  const addressPages = [];
+  cadFeatures.forEach(f => {
+    const a = f.attributes || {};
+    cadPages.push({
+      kind: 'cadastre',
+      title: 'Cadastre Legal Parcel',
+      geometry: f.geometry || null,
+      rows: [
+        ['Folio', a.Folio],
+        ['PID', a.PID],
+        ['Site_Address', a.Site_Address],
+        ['Actual_Use', a.Actual_Use],
+        ['Plan_Number', a.Plan_Number],
+        ['LTO_Number', a.LTO_Number],
+        ['Lot', a.Lot],
+        ['Block', a.Block],
+        ['District_Lot', a.District_Lot],
+        ['Land_District', a.Land_District],
+        ['Legal_Long', a.Legal_Long]
+      ]
+    });
+  });
+  addrFeatures.forEach(f => {
+    const a = f.attributes || {};
+    addressPages.push({
+      kind: 'address',
+      title: 'Address Point',
+      lat: f.geometry ? f.geometry.y : lat,
+      lon: f.geometry ? f.geometry.x : lon,
+      rows: [
+        ['Address', makeAddressDisplay({ suite: a.SUITE, address: a.ADDRESS })],
+        ['Suite/Unit', a.SUITE],
+        ['Number', a.STREETNO],
+        ['Street Name', a.STRNAME],
+        ['Street Type', a.STRTYPE],
+        ['Community', a.COMM],
+        ['Folio', a.FOLIO]
+      ]
+    });
+  });
+  return addressFirst ? [...addressPages, ...cadPages] : [...cadPages, ...addressPages];
+}
+
+async function fetchRDKBPopupPages(lat, lon) {
+  const [propertyResp, addrResp] = await Promise.all([
+    fetch(`${RDKB_PROPERTY}/query?geometry=${lon},${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=OBJECTID,FullAddress,apt_no,street_no,street_name,city,Folio,PMBC_PID,PMBC_LegalDescription,PMBC_OwnerType&returnGeometry=true&outSR=4326&f=json&resultRecordCount=10&orderByFields=FullAddress,Folio`),
+    fetch(`${RDKB_ADDRESS_POINTS}/query?geometry=${lon},${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&distance=30&units=esriSRUnit_Meter&outFields=OBJECTID_1,FULL_ADDRESS,Unit_Count,Building_Address,BUILDING_NAME,LOCALITY,ADDRESS_POINT_TYPE&returnGeometry=true&outSR=4326&f=json&resultRecordCount=10&orderByFields=FULL_ADDRESS`)
+  ]);
+  const [propertyData, addrData] = await Promise.all([propertyResp.json(), addrResp.json()]);
+  const propertyPages = (propertyData.features || []).map(f => {
+    const a = f.attributes || {};
+    return {
+      kind: 'rdkb-property',
+      title: 'RDKB Property Parcel',
+      geometry: f.geometry || null,
+      highlightStyle: { color:'#00B386', weight:2.5, fillColor:'#00B386', fillOpacity:0.05 },
+      rows: [
+        ['Full Address', a.FullAddress || '—'],
+        ['Suite/Unit', a.apt_no || '—'],
+        ['Street Number', a.street_no || '—'],
+        ['Street Name', a.street_name || '—'],
+        ['City', a.city || '—'],
+        ['Folio', a.Folio || '—'],
+        ['PID', a.PMBC_PID || '—'],
+        ['Owner Type', a.PMBC_OwnerType || '—'],
+        ['Legal', a.PMBC_LegalDescription || '—']
+      ]
+    };
+  });
+  const addressPages = sortByDistance(addrData.features || [], lat, lon).map(f => {
+    const a = f.attributes || {};
+    return {
+      kind: 'rdkb-address',
+      title: 'RDKB Address Point',
+      lat: f.geometry ? f.geometry.y : lat,
+      lon: f.geometry ? f.geometry.x : lon,
+      highlightStyle: { color:'#F4B400', weight:2, fillColor:'#F4B400', fillOpacity:0.2, radius:8 },
+      rows: [
+        ['Full Address', a.FULL_ADDRESS || '—'],
+        ['Building Address', a.Building_Address || '—'],
+        ['Unit Count', a.Unit_Count || '—'],
+        ['Building Name', a.BUILDING_NAME || '—'],
+        ['Locality', a.LOCALITY || '—'],
+        ['Address Type', a.ADDRESS_POINT_TYPE || '—']
+      ]
+    };
+  });
+  return [...propertyPages, ...addressPages];
+}
+
+function bindMainLayerToggle(id, layer, unavailableMsg, opts = {}) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const removeWith = opts.removeWith || map;
+  const resolveLayer = () => typeof layer === 'function' ? layer() : layer;
+  const addLayer = () => {
+    const resolved = resolveLayer();
+    if (!resolved) return false;
+    if (opts.beforeAdd) opts.beforeAdd();
+    resolved.addTo(map);
+    return true;
+  };
+  const removeLayer = () => {
+    const resolved = resolveLayer();
+    if (resolved && removeWith && removeWith.hasLayer && removeWith.hasLayer(resolved)) removeWith.removeLayer(resolved);
+  };
+  mainLayerControllers.set(id, { el, addLayer, removeLayer, resolveLayer });
+  el.addEventListener('change', e => {
+    const resolved = resolveLayer();
+    if (!resolved && e.target.checked) {
+      toast(unavailableMsg);
+      e.target.checked = false;
+      return;
+    }
+    if (e.target.checked) {
+      if (opts.region) enforceMainRegionLayer(opts.region);
+      if (!addLayer()) {
+        toast(unavailableMsg);
+        e.target.checked = false;
+        if (opts.region) setRegionBias(null);
+      }
+      else if (opts.region) {
+        setRegionBias(opts.region);
+      }
+      return;
+    }
+    removeLayer();
+  });
+}
+
+// Coord display
+let coordFrame = 0;
+let pendingCoordLatLng = null;
+map.on('mousemove', e => {
+  pendingCoordLatLng = e.latlng;
+  if (coordFrame) return;
+  coordFrame = requestAnimationFrame(() => {
+    if (pendingCoordLatLng) {
+      document.getElementById('coordDisp').textContent = `${pendingCoordLatLng.lat.toFixed(6)}, ${pendingCoordLatLng.lng.toFixed(6)}`;
+    }
+    pendingCoordLatLng = null;
+    coordFrame = 0;
+  });
+});
+map.on('popupclose', () => {
+  rdckPopupState = null;
+  clearRDCKPopupHighlight();
+  map.getContainer().style.cursor = '';
+});
+map.on('click', async e => {
+  if (Date.now() < rdckIgnoreMapClickUntil) return;
+  if (e.originalEvent && e.originalEvent.target && e.originalEvent.target.closest && e.originalEvent.target.closest('.leaflet-popup')) return;
+  showLov('mapLov');
+  try {
+    let pages = [];
+    const priority = getResolverSourcePriority();
+    for (const region of priority) {
+      pages = region === 'rdkb'
+        ? await fetchRDKBPopupPages(e.latlng.lat, e.latlng.lng)
+        : await fetchRDCKPopupPages(e.latlng.lat, e.latlng.lng);
+      if (pages.length) break;
+    }
+    if (!pages.length) return;
+    rdckPopupState = {
+      anchor: [e.latlng.lat, e.latlng.lng],
+      pages,
+      index: 0
+    };
+    renderRDCKPopup();
+  } catch (err) {
+    alog('Map popup query failed: ' + err.message, 'err');
+  } finally {
+    hideLov('mapLov');
+  }
+});
+bindMainLayerToggle('mSat', mainSat, 'Satellite layer unavailable');
+bindMainLayerToggle('mRoads', mainRoads, 'Road labels unavailable');
+bindMainLayerToggle('mParcelsWMS', mainParcelsWMS, 'ParcelMap BC layer unavailable');
+bindMainLayerToggle('mRDCK', ensureMainRDCKLayer, 'RDCK layer unavailable');
+bindMainLayerToggle('mRDKBProp', mainRDKBProperty, 'RDKB property layer unavailable');
+bindMainLayerToggle('mRDKBParcels', ensureMainRDKBParcels, 'RDKB parcel layer unavailable');
+bindMainLayerToggle('mRDKBAddr', ensureMainRDKBAddressPoints, 'RDKB address points unavailable');
+
+// ══════════════════════════════════════
+// RIGHT-CLICK CONTEXT MENU
+// ══════════════════════════════════════
+let ctxLL = null;
+const ctxMenu = document.getElementById('mapCtx');
+
+map.on('contextmenu', e => {
+  e.originalEvent.preventDefault();
+  ctxLL = e.latlng;
+  document.getElementById('mapCtxCoords').textContent = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+  ctxMenu.classList.add('vis');
+  let x = e.originalEvent.clientX, y = e.originalEvent.clientY;
+  ctxMenu.style.left = x + 'px'; ctxMenu.style.top = y + 'px';
+  // Keep on screen
+  setTimeout(() => {
+    const r = ctxMenu.getBoundingClientRect();
+    if (r.right > window.innerWidth) ctxMenu.style.left = (window.innerWidth - r.width - 8) + 'px';
+    if (r.bottom > window.innerHeight) ctxMenu.style.top = (window.innerHeight - r.height - 8) + 'px';
+  }, 0);
+});
+
+document.addEventListener('click', () => ctxMenu.classList.remove('vis'));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') ctxMenu.classList.remove('vis'); });
+ctxMenu.addEventListener('click', e => e.stopPropagation());
+
+// Copy DD
+document.getElementById('ctxCopyDD').addEventListener('click', async () => {
+  if (!ctxLL) return;
+  const s = `${ctxLL.lat.toFixed(7)}, ${ctxLL.lng.toFixed(7)}`;
+  const ok = await copyTextToClipboard(s);
+  toast(ok ? `Copied: ${s}` : 'Copy failed');
+  ctxMenu.classList.remove('vis');
+});
+
+// Copy DMS
+function toDMS(dd, isLon) {
+  const dir = dd >= 0 ? (isLon ? 'E' : 'N') : (isLon ? 'W' : 'S');
+  const a = Math.abs(dd);
+  const d = Math.floor(a);
+  const m = Math.floor((a - d) * 60);
+  const sec = ((a - d - m/60) * 3600).toFixed(2);
+  return `${d}\u00B0${m}'${sec}"${dir}`;
+}
+document.getElementById('ctxCopyDMS').addEventListener('click', async () => {
+  if (!ctxLL) return;
+  const s = `${toDMS(ctxLL.lat, false)} ${toDMS(ctxLL.lng, true)}`;
+  const ok = await copyTextToClipboard(s);
+  toast(ok ? `Copied: ${s}` : 'Copy failed');
+  ctxMenu.classList.remove('vis');
+});
+
+// Lookup address at click
+document.getElementById('ctxLookupAddr').addEventListener('click', async () => {
+  if (!ctxLL) return;
+  ctxMenu.classList.remove('vis');
+  showLov('mapLov');
+  try {
+    for (const region of getResolverSourcePriority()) {
+      if (region === 'rdck') {
+        const url = `${RDCK_ADDR}/query?geometry=${ctxLL.lng},${ctxLL.lat}&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects&distance=80&units=esriSRUnit_Meter&outFields=ADDRESS,SUITE,STREETNO,STRNAME,STRTYPE,COMM,FOLIO&returnGeometry=true&f=json&outSR=4326`;
+        const r = await fetch(url); const d = await r.json();
+        if (d.features && d.features.length) {
+          const features = [...d.features].sort((a, b) => {
+            const ag = a.geometry || {};
+            const bg = b.geometry || {};
+            return calcDistSq(ctxLL.lat, ctxLL.lng, ag.y || 0, ag.x || 0) - calcDistSq(ctxLL.lat, ctxLL.lng, bg.y || 0, bg.x || 0);
+          });
+          showAddressResults(features);
+          const nearest = rdckFeatureToItem(features[0]);
+          const raw = nearest.raw && nearest.raw.attributes ? nearest.raw.attributes : {};
+          setRegionBias('rdck');
+          selectAddress({
+            address: nearest.address,
+            lat: nearest.lat,
+            lon: nearest.lon,
+            comm: nearest.comm,
+            folio: nearest.folio,
+            streetNo: raw.STREETNO || '',
+            strName: raw.STRNAME || '',
+            strType: raw.STRTYPE || '',
+            source: nearest.source,
+            extra: { 'Suite/Unit': nearest.suite || '—' }
+          });
+          if (nearest.lat && nearest.lon) queryCadastreAtPoint(nearest.lat, nearest.lon);
+          alog(`Found ${features.length} RDCK addresses near click point`, 'ok');
+          return;
+        }
+        continue;
+      }
+
+      const rdkbUrl = `${RDKB_PROPERTY}/query?geometry=${ctxLL.lng},${ctxLL.lat}&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects&outFields=FullAddress,apt_no,street_no,street_name,city,Folio,PMBC_PID,PMBC_LegalDescription,PMBC_OwnerType&returnGeometry=true&outSR=4326&f=json`;
+      const rdkbResp = await fetch(rdkbUrl);
+      const rdkbData = await rdkbResp.json();
+      if (rdkbData.features && rdkbData.features.length) {
+        const first = rdkbData.features[0].attributes || {};
+        const center = estimateFeatureCenter(rdkbData.features);
+        const baseAddress = first.FullAddress || [first.street_no, first.street_name, first.city].filter(Boolean).join(' ');
+        const displayAddress = first.apt_no ? `${first.apt_no}-${baseAddress}` : baseAddress;
+        setRegionBias('rdkb');
+        selectAddress({
+          address: displayAddress || '—',
+          lat: center.lat,
+          lon: center.lon,
+          comm: first.city || '—',
+          folio: first.Folio || '—',
+          streetNo: first.street_no || '',
+          streetName: first.street_name || '',
+          source: 'RDKB Property Search',
+          extra: {
+            'Suite/Unit': first.apt_no || '—',
+            'PID': first.PMBC_PID || '—',
+            'Owner Type': first.PMBC_OwnerType || '—'
+          },
+          geometryFeatures: rdkbData.features,
+          polygonStyle: {color:'#00805A', weight:2.5, fillColor:'#00805A', fillOpacity:.08},
+          markerIcon: PIN_B
+        });
+        showRDKBPropertyDetails(rdkbData.features);
+        alog('Found RDKB property near click point', 'ok');
+        return;
+      }
+    }
+    const bcUrl = `${BC_GEO}/sites/nearest.json?point=${ctxLL.lng},${ctxLL.lat}&outputSRS=4326`;
+    const bcResp = await fetch(bcUrl);
+    const bcData = await bcResp.json();
+    if (bcData && bcData.properties) {
+      const p = bcData.properties;
+      selectAddress({
+        address: p.fullAddress || '—',
+        lat: ctxLL.lat,
+        lon: ctxLL.lng,
+        comm: p.localityName || '—',
+        folio: '—',
+        source: 'BC Geocoder (nearest)',
+        extra: {
+          'Site ID': p.siteID || '—',
+          'Precision': p.matchPrecision || p.precisionPoints || '—'
+        }
+      });
+      alog(`Nearest site: ${p.fullAddress || '—'}`, 'ok');
+      return;
+    }
+    toast('No address data nearby');
+  } catch(e) { alog('Nearby address lookup failed: '+e.message,'err'); }
+  finally { hideLov('mapLov'); }
+});
+
+// Query parcel at click
+document.getElementById('ctxQueryParcel').addEventListener('click', async () => {
+  if (!ctxLL) return;
+  ctxMenu.classList.remove('vis');
+  await queryParcelAtPoint(ctxLL.lat, ctxLL.lng);
+});
+
+// Reverse geocode (BC Geocoder)
+document.getElementById('ctxReverseGeo').addEventListener('click', async () => {
+  if (!ctxLL) return;
+  ctxMenu.classList.remove('vis');
+  showLov('mapLov');
+  try {
+    const url = `${BC_GEO}/sites/nearest.json?point=${ctxLL.lng},${ctxLL.lat}&outputSRS=4326`;
+    const r = await fetch(url); const d = await r.json();
+    if (d.properties) {
+      const p = d.properties;
+      selectAddress({
+        address: p.fullAddress || '—',
+        lat: ctxLL.lat, lon: ctxLL.lng,
+        comm: p.localityName || '—',
+        folio: '—',
+        source: 'BC Geocoder (reverse)',
+        extra: { 'Site ID': p.siteID||'—', 'Score': (p.score||'?')+'%', 'Precision': p.precisionPoints||p.matchPrecision||'—' }
+      });
+      alog(`Reverse geocode: ${p.fullAddress}`, 'ok');
+    } else { toast('No result from reverse geocode'); }
+  } catch(e) { alog('Reverse geocode failed: '+e.message, 'err'); }
+  finally { hideLov('mapLov'); }
+});
+
+document.getElementById('ctxStreetView').addEventListener('click', () => {
+  if (!ctxLL) return;
+  openStreetView(ctxLL.lat, ctxLL.lng);
+  ctxMenu.classList.remove('vis');
+});
+
+// Center
+document.getElementById('ctxCenterHere').addEventListener('click', () => {
+  if (ctxLL) map.setView([ctxLL.lat, ctxLL.lng], map.getZoom(), {animate:false});
+  ctxMenu.classList.remove('vis');
+});
+
+// ══════════════════════════════════════
+// RDCK ADDRESS AUTOCOMPLETE
+// ══════════════════════════════════════
+let acTimer = null;
+let autocompleteAbortController = null;
+const autocompleteCache = new Map();
+const acInput = document.getElementById('acInput');
+const acList = document.getElementById('acList');
+const autoSourceToggle = document.getElementById('mAutoSource');
+let localAutocompleteRows = [];
+let localAutocompleteLoadPromise = null;
+let localAutocompleteDisabledReason = '';
+const RDCK_LOCALITY_HINTS = ['CASTLEGAR', 'NELSON', 'CRESTON', 'SALMO', 'KASLO', 'SLOCAN', 'SLOCAN PARK', 'SLOCAN VALLEY', 'NAKUSP', 'NEW DENVER', 'SILVERTON', 'CRAWFORD BAY', 'BALFOUR', 'BLUEBERRY', 'ROBSON', 'THRUMS', 'SHOREACRES', 'WINLAW', 'KASLO'];
+const RDKB_LOCALITY_HINTS = ['TRAIL', 'ROSSLAND', 'GENELLE', 'JANELLE', 'GRAND FORKS', 'CHRISTINA LAKE', 'GREENWOOD', 'MIDWAY', 'FRUITVALE', 'WARFIELD', 'MONTROSE', 'CASCADE', 'BEAVERDELL', 'WESTBRIDGE', 'ROCK CREEK'];
+let currentRegionBias = null;
+
+if (autoSourceToggle) autoSourceToggle.addEventListener('change', () => updateResolverSourceModeUI());
+updateResolverSourceModeUI();
+
+function normalizeAcText(v='') {
+  return String(v || '').trim().toUpperCase().replace(/\s+/g, ' ');
+}
+
+function normalizeDisplayAddress(v='') {
+  return String(v || '')
+    .replace(/\s+,/g, ',')
+    .replace(/,\s*,/g, ',')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function coerceFiniteNumber(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function buildLocalStreetText(parts=[]) {
+  return normalizeDisplayAddress(parts.filter(Boolean).join(' '));
+}
+
+function finalizeLocalAutocompleteRow(row={}) {
+  const address = normalizeDisplayAddress(row.address || '—') || '—';
+  const rawAddress = normalizeDisplayAddress(row.rawAddress || address) || address;
+  const suite = String(row.suite || '').trim();
+  const streetNo = String(row.streetNo ?? '').trim();
+  const streetName = normalizeDisplayAddress(row.streetName || '');
+  const strName = normalizeDisplayAddress(row.strName || streetName);
+  const strType = normalizeDisplayAddress(row.strType || '');
+  const comm = normalizeDisplayAddress(row.comm || row.locality || '');
+  const folio = String(row.folio || '').trim();
+  const normalizedAddress = normalizeAcText(address);
+  const normalizedStreet = normalizeAcText([streetNo, streetName].filter(Boolean).join(' '));
+  const normalizedSuite = normalizeAcText(suite);
+  return {
+    ...row,
+    address,
+    rawAddress,
+    suite,
+    streetNo,
+    streetName,
+    strName,
+    strType,
+    comm,
+    folio,
+    lat: coerceFiniteNumber(row.lat),
+    lon: coerceFiniteNumber(row.lon),
+    key: row.key || `${row.kind}|${normalizedAddress}|${normalizeAcText(folio)}`,
+    signature: row.signature || `${normalizedSuite}|${normalizeAcText(rawAddress)}|${normalizeAcText(comm)}`,
+    metaTop: row.metaTop || comm || row.source || '',
+    metaBottom: row.metaBottom || (suite ? `Unit ${suite}${folio ? ' | ' + folio : ''}` : (folio || row.source || '')),
+    normalizedAddress,
+    normalizedStreet,
+    normalizedSuite,
+    searchable: normalizeAcText([
+      address,
+      rawAddress,
+      suite,
+      streetNo,
+      streetName,
+      strName,
+      strType,
+      comm,
+      folio
+    ].filter(Boolean).join(' ')),
+    sortRank: Number(row.sortRank ?? 2)
+  };
+}
+
+function buildRDKBLocalDisplayAddress(row={}) {
+  const fullAddress = normalizeDisplayAddress(row.fullAddress || '');
+  if (fullAddress) return fullAddress;
+  const baseStreet = buildLocalStreetText([
+    row.streetNo,
+    row.streetDirPrefix,
+    row.streetName,
+    row.streetDirSuffix
+  ]);
+  const street = row.suite ? `${row.suite}-${baseStreet}` : baseStreet;
+  return normalizeDisplayAddress([
+    street,
+    row.locality || row.city || '',
+    row.province || 'BC'
+  ].filter(Boolean).join(', '));
+}
+
+function buildLocalAutocompleteRows(rdckRows=[], rdkbPayload=[]) {
+  const rdkbRows = Array.isArray(rdkbPayload)
+    ? rdkbPayload
+    : ((rdkbPayload && Array.isArray(rdkbPayload.rows)) ? rdkbPayload.rows : []);
+
+  const rdckItems = (rdckRows || []).map(row => finalizeLocalAutocompleteRow({
+    kind: 'rdck',
+    address: row.suite ? `${row.suite}-${row.address || '—'}` : (row.address || '—'),
+    rawAddress: row.address || '—',
+    suite: row.suite || '',
+    lat: row.lat,
+    lon: row.lon,
+    comm: row.community || '',
+    folio: row.folio || '',
+    streetNo: row.streetNo || '',
+    streetName: buildLocalStreetText([row.streetName, row.streetType]),
+    strName: row.streetName || '',
+    strType: row.streetType || '',
+    metaTop: row.community || 'RDCK',
+    metaBottom: row.suite ? `Unit ${row.suite}${row.folio ? ' | ' + row.folio : ''}` : (row.folio || 'RDCK'),
+    source: 'RDCK Address Cache',
+    sortRank: row.suite ? 0 : 2
+  }));
+
+  const rdkbItems = rdkbRows.map(row => {
+    const streetName = buildLocalStreetText([
+      row.streetDirPrefix,
+      row.streetName,
+      row.streetDirSuffix
+    ]);
+    return finalizeLocalAutocompleteRow({
+      kind: 'rdkb',
+      address: buildRDKBLocalDisplayAddress(row) || '—',
+      rawAddress: buildLocalStreetText([row.streetNo, streetName]) || row.fullAddress || '—',
+      suite: row.suite || '',
+      lat: row.lat,
+      lon: row.lon,
+      comm: row.locality || row.city || '',
+      folio: row.folio || '',
+      streetNo: row.streetNo || '',
+      streetName,
+      metaTop: row.locality || row.city || 'RDKB',
+      metaBottom: row.suite ? `Unit ${row.suite}${row.folio ? ' | ' + row.folio : ''}` : (row.folio || 'RDKB'),
+      source: 'RDKB Address Cache',
+      sortRank: row.suite ? 0.5 : 2.5
+    });
+  });
+
+  return [...rdckItems, ...rdkbItems];
+}
+
+function buildAutocompleteCacheKey(mode, query, sources) {
+  return `${mode}|${sources.rdck ? '1' : '0'}${sources.rdkb ? '1' : '0'}|${normalizeAcText(query)}`;
+}
+
+function renderAutocompleteLoading(text='Loading local address cache...') {
+  acList.innerHTML = `<div class="ac-count">${esc(text)}</div>`;
+  acList.classList.add('visible');
+}
+
+function scoreLocalAutocompleteRow(row, normalizedQuery, tokens, unitSearch) {
+  if (tokens.some(token => !row.searchable.includes(token))) return -1;
+  let score = 0;
+  if (row.normalizedAddress === normalizedQuery) score += 220;
+  if (row.normalizedAddress.startsWith(normalizedQuery)) score += 140;
+  if (row.normalizedStreet === normalizedQuery) score += 100;
+  if (row.normalizedStreet.startsWith(normalizedQuery)) score += 60;
+  if (row.searchable.startsWith(normalizedQuery)) score += 35;
+  if (tokens.length && row.streetNo && tokens[0] === normalizeAcText(row.streetNo)) score += 25;
+  if (unitSearch && row.normalizedSuite && row.normalizedSuite === normalizeAcText(unitSearch.unitNumber)) score += 40;
+  if (row.lat != null && row.lon != null) score += 5;
+  return score;
+}
+
+function searchLocalAutocompleteRows(query, sources, unitSearch) {
+  const normalizedQuery = normalizeAcText(query);
+  const tokens = normalizedQuery.split(' ').filter(Boolean);
+  const items = [];
+  for (const row of localAutocompleteRows) {
+    if (row.kind === 'rdck' && !sources.rdck) continue;
+    if (row.kind === 'rdkb' && !sources.rdkb) continue;
+    const score = scoreLocalAutocompleteRow(row, normalizedQuery, tokens, unitSearch);
+    if (score < 0) continue;
+    items.push({ ...row, score });
+  }
+  items.sort((a, b) =>
+    ((b.score || 0) - (a.score || 0)) ||
+    (a.sortRank - b.sortRank) ||
+    a.address.localeCompare(b.address)
+  );
+  const seen = new Set();
+  return items.filter(item => {
+    const dedupeKey = item.signature || normalizeAcText(item.address);
+    if (seen.has(dedupeKey)) return false;
+    seen.add(dedupeKey);
+    return true;
+  }).slice(0, LOCAL_AUTOCOMPLETE_LIMIT);
+}
+
+async function openLocalCacheDb() {
+  if (!('indexedDB' in window)) return null;
+  return await new Promise((resolve, reject) => {
+    const req = indexedDB.open(LOCAL_CACHE_DB_NAME, LOCAL_CACHE_DB_VERSION);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(LOCAL_CACHE_STORE)) {
+        req.result.createObjectStore(LOCAL_CACHE_STORE);
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbGet(db, key) {
+  if (!db) return undefined;
+  return await new Promise((resolve, reject) => {
+    const tx = db.transaction(LOCAL_CACHE_STORE, 'readonly');
+    const req = tx.objectStore(LOCAL_CACHE_STORE).get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbSet(db, key, value) {
+  if (!db) return;
+  return await new Promise((resolve, reject) => {
+    const tx = db.transaction(LOCAL_CACHE_STORE, 'readwrite');
+    tx.objectStore(LOCAL_CACHE_STORE).put(value, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function fetchJsonFile(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${response.status} loading ${url}`);
+  return await response.json();
+}
+
+async function ensureLocalAutocompleteRows() {
+  if (localAutocompleteRows.length) return localAutocompleteRows;
+  if (localAutocompleteDisabledReason) throw new Error(localAutocompleteDisabledReason);
+  if (localAutocompleteLoadPromise) return localAutocompleteLoadPromise;
+
+  localAutocompleteLoadPromise = (async () => {
+    alog('Loading local address cache...', 'info');
+    const manifest = await fetchJsonFile(LOCAL_AUTOCOMPLETE_MANIFEST_URL);
+    const db = await openLocalCacheDb().catch(() => null);
+    const cachedVersion = db ? await idbGet(db, LOCAL_CACHE_VERSION_KEY) : null;
+    const cachedRows = db ? await idbGet(db, LOCAL_CACHE_ROWS_KEY) : null;
+    if (cachedVersion === manifest.exportedAt && Array.isArray(cachedRows) && cachedRows.length) {
+      localAutocompleteRows = cachedRows;
+      alog(`Local address cache ready from IndexedDB (${localAutocompleteRows.length} rows).`, 'ok');
+      return localAutocompleteRows;
+    }
+
+    const [rdckRows, rdkbPayload] = await Promise.all([
+      fetchJsonFile(LOCAL_RDCK_DATA_URL),
+      fetchJsonFile(LOCAL_RDKB_DATA_URL)
+    ]);
+    localAutocompleteRows = buildLocalAutocompleteRows(rdckRows, rdkbPayload);
+    if (db) {
+      await idbSet(db, LOCAL_CACHE_ROWS_KEY, localAutocompleteRows);
+      await idbSet(db, LOCAL_CACHE_VERSION_KEY, manifest.exportedAt);
+    }
+    alog(`Local address cache built (${localAutocompleteRows.length} rows).`, 'ok');
+    return localAutocompleteRows;
+  })();
+
+  try {
+    return await localAutocompleteLoadPromise;
+  } catch (err) {
+    localAutocompleteDisabledReason = err && err.message ? err.message : 'Local cache unavailable';
+    throw err;
+  } finally {
+    localAutocompleteLoadPromise = null;
+  }
+}
+
+function sqlText(v='') {
+  return String(v || '').replace(/'/g, "''");
+}
+
+function buildUnitLabel(p={}) {
+  const parts = [
+    p.fullSiteDescriptor,
+    [p.unitDesignator, p.unitNumber, p.unitNumberSuffix].filter(Boolean).join(' ').trim()
+  ].filter(Boolean);
+  return parts[0] || '';
+}
+
+function parseUnitSearch(query='') {
+  const q = String(query || '').trim();
+  let m = q.match(/^\s*(\d+[A-Z]?)\s*-\s*(\d+\b.*)$/i);
+  if (m) {
+    return {
+      unitNumber: m[1].toUpperCase(),
+      baseQuery: m[2].trim(),
+      normalizedQuery: `UNIT ${m[1].toUpperCase()} ${m[2].trim()}`
+    };
+  }
+  m = q.match(/^\s*UNIT\s+(\d+[A-Z]?)\s+(.+)$/i);
+  if (m) {
+    return {
+      unitNumber: m[1].toUpperCase(),
+      baseQuery: m[2].trim(),
+      normalizedQuery: `UNIT ${m[1].toUpperCase()} ${m[2].trim()}`
+    };
+  }
+  return null;
+}
+
+function parseRDKBSearch(query='') {
+  const unitSearch = parseUnitSearch(query);
+  let q = String(unitSearch ? unitSearch.baseQuery : query || '')
+    .toUpperCase()
+    .replace(/,/g, ' ')
+    .replace(/\bBRITISH\s+COLUMBIA\b/g, ' ')
+    .replace(/\bBC\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!q) return null;
+
+  const tokens = q.split(' ').filter(Boolean);
+  let streetNo = '';
+  if (tokens.length && /^\d+[A-Z]?$/.test(tokens[0])) streetNo = tokens.shift();
+
+  const streetTypeTokens = new Set(['AVE','AVENUE','ST','STREET','RD','ROAD','DR','DRIVE','BLVD','BOULEVARD','HWY','HIGHWAY','LN','LANE','WAY','PL','PLACE','CRT','COURT','CRES','CRESCENT','PKWY','PARKWAY','TERR','TERRACE','CIR','CIRCLE','LOOP']);
+  let streetTokens = tokens.slice();
+  let cityTokens = [];
+  const streetTypeIdx = tokens.findIndex(tok => streetTypeTokens.has(tok));
+  if (streetTypeIdx >= 0) {
+    streetTokens = tokens.slice(0, streetTypeIdx + 1);
+    cityTokens = tokens.slice(streetTypeIdx + 1);
+  }
+
+  const streetName = streetTokens.join(' ').trim();
+  const city = cityTokens.join(' ').trim();
+  return {
+    aptNo: unitSearch ? unitSearch.unitNumber : '',
+    streetNo,
+    streetName,
+    city
+  };
+}
+
+function buildRDCKWhere(query, isRaw=false) {
+  if (isRaw || query.includes('=') || query.includes('LIKE')) return query;
+  const isNum = /^\d+$/.test(query);
+  if (isNum) return `STREETNO=${query}`;
+  return `ADDRESS LIKE '%${query.toUpperCase().replace(/'/g,"''")}%'`;
+}
+
+async function fetchRDCKAddressFeatures(query, isRaw=false) {
+  const signal = arguments[2];
+  const where = buildRDCKWhere(query, isRaw);
+  const url = `${RDCK_ADDR}/query?where=${encodeURIComponent(where)}&outFields=ADDRESS,SUITE,STREETNO,STRNAME,STRTYPE,COMM,FOLIO&returnGeometry=true&outSR=4326&f=json&resultRecordCount=60&orderByFields=ADDRESS,SUITE`;
+  const r = await fetch(url, signal ? {signal} : undefined);
+  const d = await r.json();
+  if (d.error) throw new Error(d.error.message || 'RDCK query failed');
+  return d.features || [];
+}
+
+async function fetchBCGeocoderFeatures(query, maxResults=10) {
+  const signal = arguments[2];
+  const url = `${BC_GEO}/addresses.json?addressString=${encodeURIComponent(query)}&maxResults=${maxResults}&outputSRS=4326`;
+  const r = await fetch(url, signal ? {signal} : undefined);
+  const d = await r.json();
+  return d.features || [];
+}
+
+function buildRDKBWhere(query='') {
+  const parsed = parseRDKBSearch(query);
+  if (!parsed) return '';
+  const parts = [];
+  if (parsed.aptNo) parts.push(`apt_no='${sqlText(parsed.aptNo)}'`);
+  if (parsed.streetNo) parts.push(`street_no='${sqlText(parsed.streetNo)}'`);
+  if (parsed.streetName) parts.push(`street_name LIKE '${sqlText(parsed.streetName)}%'`);
+  if (parsed.city) parts.push(`city LIKE '${sqlText(parsed.city)}%'`);
+  return parts.join(' AND ');
+}
+
+async function fetchRDKBAddressFeatures(query) {
+  const signal = arguments[1];
+  const where = buildRDKBWhere(query);
+  if (!where) return [];
+  const url = `${RDKB_ADDRESS_TABLE}/query?where=${encodeURIComponent(where)}&outFields=OBJECTID,folio,apt_no,street_no,street_name,city,postal_code,AddressID&returnGeometry=false&f=json&resultRecordCount=60&orderByFields=street_no,street_name,apt_no,city`;
+  const r = await fetch(url, signal ? {signal} : undefined);
+  const d = await r.json();
+  if (d.error) throw new Error(d.error.message || 'RDKB query failed');
+  return d.features || [];
+}
+
+async function fetchRDKBPropertyFeatures(opts={}) {
+  const parts = [];
+  if (opts.folio) parts.push(`Folio='${sqlText(opts.folio)}'`);
+  else {
+    if (opts.streetNo) parts.push(`street_no='${sqlText(opts.streetNo)}'`);
+    if (opts.streetName) parts.push(`street_name LIKE '${sqlText(opts.streetName)}%'`);
+    if (opts.city) parts.push(`city LIKE '${sqlText(opts.city)}%'`);
+  }
+  const where = parts.join(' AND ');
+  if (!where) return [];
+  const url = `${RDKB_PROPERTY}/query?where=${encodeURIComponent(where)}&outFields=FullAddress,apt_no,street_no,street_name,city,Folio,PMBC_PID,PMBC_LegalDescription,PMBC_OwnerType&returnGeometry=true&outSR=4326&f=json&resultRecordCount=40&orderByFields=FullAddress,Folio`;
+  const r = await fetch(url);
+  const d = await r.json();
+  if (d.error) throw new Error(d.error.message || 'RDKB property query failed');
+  return d.features || [];
+}
+
+function rdckFeatureToItem(f) {
+  const a = f.attributes || {};
+  const suite = String(a.SUITE || '').trim();
+  const displayAddress = suite ? `${suite}-${a.ADDRESS || '—'}` : (a.ADDRESS || '—');
+  return {
+    kind: 'rdck',
+    key: `rdck|${normalizeAcText(displayAddress)}|${normalizeAcText(a.FOLIO)}`,
+    signature: `${normalizeAcText(suite)}|${normalizeAcText(a.ADDRESS)}|${normalizeAcText(a.COMM)}`,
+    address: displayAddress,
+    rawAddress: a.ADDRESS || '—',
+    suite,
+    lat: f.geometry ? f.geometry.y : null,
+    lon: f.geometry ? f.geometry.x : null,
+    comm: a.COMM || '',
+    folio: a.FOLIO || '',
+    streetNo: a.STREETNO || '',
+    streetName: buildLocalStreetText([a.STRNAME, a.STRTYPE]),
+    strName: a.STRNAME || '',
+    strType: a.STRTYPE || '',
+    metaTop: a.COMM || 'RDCK',
+    metaBottom: suite ? `Unit ${suite}${a.FOLIO ? ' | ' + a.FOLIO : ''}` : (a.FOLIO || 'RDCK'),
+    source: 'RDCK Address Points',
+    sortRank: suite ? 0 : 2,
+    score: 0,
+    raw: f
+  };
+}
+
+function rdkbFeatureToItem(f) {
+  const a = f.attributes || {};
+  const suite = String(a.apt_no || '').trim();
+  const baseAddress = [a.street_no, a.street_name].filter(Boolean).join(' ').trim() || '—';
+  const displayAddress = suite
+    ? `${suite}-${baseAddress}${a.city ? ', ' + a.city : ''}, BC`
+    : `${baseAddress}${a.city ? ', ' + a.city : ''}, BC`;
+  return {
+    kind: 'rdkb',
+    key: `rdkb|${normalizeAcText(displayAddress)}|${normalizeAcText(a.folio)}`,
+    signature: `${normalizeAcText(suite)}|${normalizeAcText(baseAddress)}|${normalizeAcText(a.city)}`,
+    address: displayAddress,
+    rawAddress: baseAddress,
+    suite,
+    lat: null,
+    lon: null,
+    comm: a.city || '',
+    folio: a.folio || '',
+    streetNo: a.street_no || '',
+    streetName: a.street_name || '',
+    metaTop: a.city || 'RDKB',
+    metaBottom: suite ? `Unit ${suite}${a.folio ? ' | ' + a.folio : ''}` : (a.folio || 'RDKB'),
+    source: 'RDKB Address Table',
+    sortRank: suite ? 0.5 : 2.5,
+    score: 0,
+    raw: f
+  };
+}
+
+function geoFeatureToItem(f) {
+  const p = f.properties || {};
+  const c = f.geometry && f.geometry.coordinates ? f.geometry.coordinates : [];
+  const unitLabel = buildUnitLabel(p);
+  const unitNo = String(p.unitNumber || '').trim();
+  const displayAddress = unitNo && p.streetAddress
+    ? `${unitNo}-${p.streetAddress}${p.localityName ? ', ' + p.localityName : ''}${p.provinceCode ? ', ' + p.provinceCode : ''}`
+    : (p.fullAddress || p.streetAddress || '—');
+  return {
+    kind: 'geo',
+    key: `geo|${normalizeAcText(displayAddress)}`,
+    signature: `${normalizeAcText(unitNo || unitLabel)}|${normalizeAcText(p.streetAddress || p.fullAddress)}|${normalizeAcText(p.localityName)}`,
+    address: displayAddress,
+    rawAddress: p.fullAddress || p.streetAddress || '—',
+    lat: c.length ? c[1] : null,
+    lon: c.length ? c[0] : null,
+    comm: p.localityName || '',
+    folio: '—',
+    unitLabel,
+    metaTop: p.localityName || `${p.score || 0}% match`,
+    metaBottom: unitLabel ? `${unitLabel} | BC Geocoder` : `BC Geocoder | ${p.score || 0}%`,
+    source: unitLabel ? 'BC Geocoder (unit)' : 'BC Geocoder',
+    sortRank: unitLabel ? 1 : 3,
+    score: Number(p.score || 0),
+    raw: f
+  };
+}
+
+function filterGeoUnitMatches(geoFeatures, rdckFeatures) {
+  if (!rdckFeatures.length) return geoFeatures;
+  const rdckBase = new Set(rdckFeatures.map(f => normalizeAcText(f.attributes && f.attributes.ADDRESS)));
+  const rdckScoped = new Set(rdckFeatures.map(f => {
+    const a = f.attributes || {};
+    return `${normalizeAcText(a.ADDRESS)}|${normalizeAcText(a.COMM)}`;
+  }));
+  const hasScopedCommunities = [...rdckScoped].some(v => !v.endsWith('|'));
+  return geoFeatures.filter(f => {
+    const p = f.properties || {};
+    const streetAddress = normalizeAcText(p.streetAddress || p.fullAddress);
+    const locality = normalizeAcText(p.localityName);
+    if (hasScopedCommunities) return rdckScoped.has(`${streetAddress}|${locality}`);
+    return rdckBase.has(streetAddress);
+  });
+}
+
+function isMainLayerChecked(id) {
+  const el = document.getElementById(id);
+  return !!(el && el.checked);
+}
+
+function setRegionBias(region) {
+  currentRegionBias = region || null;
+  updateResolverSourceModeUI();
+}
+
+function isResolverAutoSourceEnabled() {
+  const el = document.getElementById('mAutoSource');
+  return !el || el.checked;
+}
+
+function getResolverSourcePriority() {
+  if (!isResolverAutoSourceEnabled()) {
+    if (currentRegionBias === 'rdkb') return ['rdkb'];
+    if (currentRegionBias === 'rdck') return ['rdck'];
+  }
+  if (currentRegionBias === 'rdkb') return ['rdkb', 'rdck'];
+  if (currentRegionBias === 'rdck') return ['rdck', 'rdkb'];
+  return ['rdck', 'rdkb'];
+}
+
+function updateResolverSourceModeUI() {
+  const label = document.getElementById('mAutoSourceLabel');
+  const hint = document.getElementById('mAutoSourceHint');
+  if (!label || !hint) return;
+  if (isResolverAutoSourceEnabled()) {
+    label.textContent = 'Auto-select RDCK / RDKB source';
+    hint.textContent = currentRegionBias
+      ? `Auto mode is on. Searches prefer ${currentRegionBias.toUpperCase()} first and fall back to the other region when needed.`
+      : 'Auto mode tries both regional datasets and prefers the last successful region.';
+    return;
+  }
+  if (currentRegionBias === 'rdkb') {
+    label.textContent = 'Source locked to RDKB';
+    hint.textContent = 'Searches and map clicks stay on RDKB until you turn auto mode back on.';
+    return;
+  }
+  if (currentRegionBias === 'rdck') {
+    label.textContent = 'Source locked to RDCK';
+    hint.textContent = 'Searches and map clicks stay on RDCK until you turn auto mode back on.';
+    return;
+  }
+  label.textContent = 'Source lock ready';
+  hint.textContent = 'Auto mode is off, but no region is locked yet. The next successful RDCK or RDKB result will set the lock.';
+}
+
+function chooseSearchSources(query, unitSearch) {
+  const q = normalizeAcText(query);
+  const hasRDCKHint = RDCK_LOCALITY_HINTS.some(name => q.includes(name));
+  const hasRDKBHint = RDKB_LOCALITY_HINTS.some(name => q.includes(name));
+  if (!isResolverAutoSourceEnabled()) {
+    if (currentRegionBias === 'rdck') return { rdck:true, rdkb:false, geo:!!unitSearch };
+    if (currentRegionBias === 'rdkb') return { rdck:false, rdkb:true, geo:!!unitSearch };
+  }
+  if (hasRDCKHint && !hasRDKBHint) return { rdck:true, rdkb:false, geo:!!unitSearch };
+  if (hasRDKBHint && !hasRDCKHint) return { rdck:false, rdkb:true, geo:!!unitSearch };
+  if (currentRegionBias === 'rdck') return { rdck:true, rdkb:false, geo:!!unitSearch };
+  if (currentRegionBias === 'rdkb') return { rdck:false, rdkb:true, geo:!!unitSearch };
+  return { rdck:true, rdkb:true, geo:!!unitSearch };
+}
+
+function mergeAutocompleteItems(rdckFeatures, rdkbFeatures, geoFeatures) {
+  const items = [
+    ...rdkbFeatures.map(rdkbFeatureToItem),
+    ...geoFeatures.map(geoFeatureToItem),
+    ...rdckFeatures.map(rdckFeatureToItem)
+  ];
+  items.sort((a, b) =>
+    (a.sortRank - b.sortRank) ||
+    ((b.score || 0) - (a.score || 0)) ||
+    a.address.localeCompare(b.address)
+  );
+  const seen = new Set();
+  return items.filter(item => {
+    const dedupeKey = item.signature || normalizeAcText(item.address);
+    if (seen.has(dedupeKey)) return false;
+    seen.add(dedupeKey);
+    return true;
+  }).slice(0, 20);
+}
+
+function updateParcelCard(title, fields) {
+  document.querySelector('#parcelCard .rcard-h span').textContent = title;
+  document.getElementById('parcelBody').innerHTML = fields.map(([l,v]) =>
+    `<div class="rr"><span class="rl">${esc(l)}</span><span class="rv">${esc(String(v||'—'))}</span></div>`
+  ).join('');
+  document.getElementById('parcelCard').classList.add('vis');
+}
+
+function estimateFeatureCenter(features=[]) {
+  const ring = features.find(f => f.geometry && f.geometry.rings && f.geometry.rings.length);
+  if (!ring) return { lat:null, lon:null };
+  const pts = ring.geometry.rings[0] || [];
+  if (!pts.length) return { lat:null, lon:null };
+  const sum = pts.reduce((acc, pt) => {
+    acc.lat += pt[1];
+    acc.lon += pt[0];
+    return acc;
+  }, {lat:0, lon:0});
+  return {
+    lat: sum.lat / pts.length,
+    lon: sum.lon / pts.length
+  };
+}
+
+async function resolveRDKBSelection(item) {
+  const attrs = item.raw && item.raw.attributes ? item.raw.attributes : {};
+  const propertyFeatures = await fetchRDKBPropertyFeatures({
+    folio: item.folio || attrs.folio,
+    streetNo: item.streetNo || attrs.street_no,
+    streetName: item.streetName || attrs.street_name,
+    city: item.comm || attrs.city
+  });
+  const center = estimateFeatureCenter(propertyFeatures);
+  return {
+    address: item.address,
+    lat: center.lat,
+    lon: center.lon,
+    comm: item.comm || attrs.city || '',
+    folio: item.folio || attrs.folio || '—',
+    streetNo: item.streetNo || attrs.street_no || '',
+    streetName: item.streetName || attrs.street_name || '',
+    source: 'RDKB Address + Property Search',
+    extra: {
+      'Suite/Unit': item.suite || '—',
+      'Street Number': item.streetNo || attrs.street_no || '—',
+      'Street Name': item.streetName || attrs.street_name || '—',
+      'Property Matches': propertyFeatures.length || 0
+    },
+    geometryFeatures: propertyFeatures,
+    polygonStyle: {color:'#00805A', weight:2.5, fillColor:'#00805A', fillOpacity:.08},
+    markerIcon: PIN_B
+  };
+}
+
+function showRDKBPropertyDetails(propertyFeatures=[]) {
+  if (!propertyFeatures.length) {
+    document.getElementById('parcelCard').classList.remove('vis');
+    return;
+  }
+  const a = propertyFeatures[0].attributes || {};
+  updateParcelCard('RDKB Property Info', [
+    ['Address', a.FullAddress || `${a.street_no || ''} ${a.street_name || ''}`.trim()],
+    ['Suite/Unit', a.apt_no || '—'],
+    ['Folio', a.Folio || '—'],
+    ['PID', a.PMBC_PID || '—'],
+    ['Owner Type', a.PMBC_OwnerType || '—'],
+    ['Legal', a.PMBC_LegalDescription || '—'],
+    ['Matches', propertyFeatures.length]
+  ]);
+}
+
+function renderAutocompleteItems(items, sourceLabel='RDCK') {
+  acList.innerHTML = '';
+  if (!items.length) {
+    acList.innerHTML = '<div class="ac-count">No results found</div>';
+    acList.classList.add('visible');
+    return;
+  }
+  acList.innerHTML = `<div class="ac-count">${items.length} result${items.length>1?'s':''} from ${esc(sourceLabel)}</div>`;
+  items.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'ac-item';
+    div.innerHTML = `
+      <div><span class="ac-addr">${esc(item.address || '—')}</span></div>
+      <div style="text-align:right"><span class="ac-comm">${esc(item.metaTop || '')}</span><br><span class="ac-folio">${esc(item.metaBottom || '')}</span></div>
+    `;
+    div.addEventListener('click', async () => {
+      acList.classList.remove('visible');
+      showLov('mapLov');
+      try {
+        if (item.kind === 'rdck') {
+          setRegionBias('rdck');
+          const a = item.raw && item.raw.attributes ? item.raw.attributes : {};
+          selectAddress({
+            address: item.address,
+            lat: item.lat,
+            lon: item.lon,
+            comm: item.comm,
+            folio: item.folio,
+            streetNo: item.streetNo || a.STREETNO,
+            strName: item.strName || a.STRNAME,
+            strType: item.strType || a.STRTYPE,
+            source: item.source,
+            extra: { 'Suite/Unit': item.suite || '—' }
+          });
+          if (item.lat && item.lon) queryCadastreAtPoint(item.lat, item.lon);
+        } else if (item.kind === 'rdkb') {
+          setRegionBias('rdkb');
+          const info = await resolveRDKBSelection(item);
+          selectAddress(info);
+          showRDKBPropertyDetails(info.geometryFeatures || []);
+        } else {
+          const p = item.raw.properties || {};
+          selectAddress({
+            address: item.address,
+            lat: item.lat,
+            lon: item.lon,
+            comm: item.comm,
+            folio: '—',
+            source: item.source,
+            extra: {
+              'Unit': item.unitLabel || '—',
+              'Site ID': p.siteID || '—',
+              'Score': (p.score || '?') + '%',
+              'Precision': p.matchPrecision || p.precisionPoints || '—'
+            }
+          });
+          if (item.lat && item.lon) queryCadastreAtPoint(item.lat, item.lon);
+        }
+      } catch (err) {
+        alog('Address selection failed: ' + err.message, 'err');
+      } finally {
+        hideLov('mapLov');
+      }
+    });
+    acList.appendChild(div);
+  });
+  acList.classList.add('visible');
+}
+
+async function searchAutocompleteRemote(query, unitSearch, sources, signal) {
+  const q = String(query || '').trim();
+  if (!q) return { items: [], label: 'Live Search' };
+  const rdckQuery = unitSearch ? unitSearch.baseQuery : q;
+  const label = unitSearch
+    ? [sources.rdck && 'RDCK Live', sources.rdkb && 'RDKB Live', sources.geo && 'BC Geocoder'].filter(Boolean).join(' + ')
+    : [sources.rdck && 'RDCK Live', sources.rdkb && 'RDKB Live'].filter(Boolean).join(' + ');
+  const [rdckFeatures, rdkbFeatures, rawGeoFeatures] = await Promise.all([
+    sources.rdck ? fetchRDCKAddressFeatures(rdckQuery, false, signal) : Promise.resolve([]),
+    sources.rdkb ? fetchRDKBAddressFeatures(q, signal) : Promise.resolve([]),
+    sources.geo ? fetchBCGeocoderFeatures(q, 10, signal) : Promise.resolve([])
+  ]);
+  const geoFeatures = unitSearch ? filterGeoUnitMatches(rawGeoFeatures, rdckFeatures) : [];
+  const items = mergeAutocompleteItems(rdckFeatures, rdkbFeatures, geoFeatures);
+  return { items, label };
+}
+
+async function searchAutocomplete(query) {
+  const q = String(query || '').trim();
+  if (!q) return;
+  const unitSearch = parseUnitSearch(q);
+  const localSources = chooseSearchSources(q, null);
+  const localLabel = [localSources.rdck && 'RDCK Cache', localSources.rdkb && 'RDKB Cache'].filter(Boolean).join(' + ') || 'Local Cache';
+  const localCacheKey = buildAutocompleteCacheKey('local', q, localSources);
+  if (autocompleteCache.has(localCacheKey)) {
+    const cached = autocompleteCache.get(localCacheKey);
+    renderAutocompleteItems(cached.items, cached.label);
+    return;
+  }
+
+  if (autocompleteAbortController) autocompleteAbortController.abort();
+  autocompleteAbortController = new AbortController();
+  const signal = autocompleteAbortController.signal;
+
+  try {
+    if (!localAutocompleteRows.length && !localAutocompleteDisabledReason) renderAutocompleteLoading();
+    if (!localAutocompleteDisabledReason) {
+      await ensureLocalAutocompleteRows();
+      if (signal.aborted) return;
+      const items = searchLocalAutocompleteRows(q, localSources, unitSearch);
+      autocompleteCache.set(localCacheKey, { items, label: localLabel });
+      if (autocompleteCache.size > 60) autocompleteCache.delete(autocompleteCache.keys().next().value);
+      renderAutocompleteItems(items, localLabel);
+      return;
+    }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;
+    if (!localAutocompleteDisabledReason) {
+      localAutocompleteDisabledReason = e && e.message ? e.message : 'Local cache unavailable';
+      alog('Local autocomplete unavailable. Falling back to live services: ' + localAutocompleteDisabledReason, 'warn');
+    }
+  }
+
+  const remoteSources = chooseSearchSources(q, unitSearch);
+  const remoteCacheKey = buildAutocompleteCacheKey('remote', q, remoteSources);
+  if (autocompleteCache.has(remoteCacheKey)) {
+    const cached = autocompleteCache.get(remoteCacheKey);
+    renderAutocompleteItems(cached.items, cached.label);
+    if (autocompleteAbortController && autocompleteAbortController.signal === signal) autocompleteAbortController = null;
+    return;
+  }
+
+  try {
+    const remote = await searchAutocompleteRemote(q, unitSearch, remoteSources, signal);
+    if (signal.aborted) return;
+    autocompleteCache.set(remoteCacheKey, remote);
+    if (autocompleteCache.size > 60) autocompleteCache.delete(autocompleteCache.keys().next().value);
+    renderAutocompleteItems(remote.items, remote.label);
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;
+    alog('Autocomplete search failed: ' + e.message, 'err');
+    renderAutocompleteItems([], localLabel);
+  } finally {
+    if (autocompleteAbortController && autocompleteAbortController.signal === signal) autocompleteAbortController = null;
+  }
+}
+
+acInput.addEventListener('input', () => {
+  clearTimeout(acTimer);
+  const q = acInput.value.trim();
+  if (q.length < 2) { acList.classList.remove('visible'); return; }
+  acTimer = setTimeout(() => searchAutocomplete(q), PERF.autocompleteDebounceMs);
+});
+
+acInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { clearTimeout(acTimer); searchAutocomplete(acInput.value.trim()); }
+  if (e.key === 'Escape') acList.classList.remove('visible');
+});
+
+document.getElementById('acSearchBtn').addEventListener('click', () => {
+  const num = document.getElementById('acNum').value.trim();
+  const street = document.getElementById('acStreet').value.trim();
+  let q = '';
+  if (num && street) q = `${num} ${street}`;
+  else if (num) q = num;
+  else if (street) q = street;
+  else {
+    q = acInput.value.trim();
+    if(!q) return;
+    searchAutocomplete(q);
+    return;
+  }
+  acInput.value = q;
+  searchAutocomplete(q);
+});
+
+async function searchRDCKAddresses(query, isRaw=false) {
+  try {
+    const features = await fetchRDCKAddressFeatures(query, isRaw);
+    showAddressResults(features);
+  } catch(e) { alog('RDCK search failed: '+e.message, 'err'); }
+}
+
+function showAddressResults(features) {
+  renderAutocompleteItems((features || []).map(rdckFeatureToItem), 'RDCK');
+}
+
+document.getElementById('selStreetViewBtn').addEventListener('click', () => {
+  if (!selectedAddressState) return;
+  openStreetView(selectedAddressState.lat, selectedAddressState.lon);
+});
+
+// Close autocomplete on outside click
+document.addEventListener('click', e => {
+  if (!e.target.closest('.ac-wrap')) acList.classList.remove('visible');
+});
+
+// ══════════════════════════════════════
+// BC GEOCODER FALLBACK
+// ══════════════════════════════════════
+document.getElementById('acBcGeoBtn').addEventListener('click', async () => {
+  const q = acInput.value.trim();
+  if (!q) return;
+  showLov('mapLov');
+  try {
+    const items = (await fetchBCGeocoderFeatures(q, 10)).map(geoFeatureToItem);
+    if (!items.length) { toast('No results from BC Geocoder'); return; }
+    renderAutocompleteItems(items, 'BC Geocoder');
+  } catch(e) { alog('BC Geocoder failed: '+e.message, 'err'); }
+  finally { hideLov('mapLov'); }
+});
+
+// ══════════════════════════════════════
+// SELECT ADDRESS — plot + show details
+// ══════════════════════════════════════
+function selectAddress(info) {
+  clearMapOverlays();
+  document.getElementById('parcelCard').classList.remove('vis');
+  selectedAddressState = info;
+  syncResolverSearchFields(info);
+  // Update card
+  const hdr = document.querySelector('#selCard .rcard-h');
+  hdr.innerHTML = `<span>${esc(info.address)}</span>`;
+  let rows = [
+    ['Address', info.address],
+    ['Community', info.comm],
+    ['Folio', info.folio],
+    ['Source', info.source],
+    ['Lat', info.lat ? info.lat.toFixed(7) : '—'],
+    ['Lon', info.lon ? info.lon.toFixed(7) : '—'],
+  ];
+  if (info.extra) Object.entries(info.extra).forEach(([k,v]) => rows.push([k,v]));
+  document.getElementById('selBody').innerHTML = rows.map(([l,v]) =>
+    `<div class="rr"><span class="rl">${esc(l)}</span><span class="rv">${esc(String(v||'—'))}</span></div>`
+  ).join('');
+  const streetViewBtn = document.getElementById('selStreetViewBtn');
+  if (typeof info.lat === 'number' && typeof info.lon === 'number') {
+    streetViewBtn.style.display = 'block';
+  } else {
+    streetViewBtn.style.display = 'none';
+  }
+
+  // Plot on map
+  let fitBounds = null;
+  if (Array.isArray(info.geometryFeatures) && info.geometryFeatures.length) {
+    const layers = [];
+    info.geometryFeatures.forEach(feature => {
+      if (feature.geometry && feature.geometry.rings) {
+        const latlngs = feature.geometry.rings.map(ring => ring.map(pt => [pt[1], pt[0]]));
+        const poly = L.polygon(latlngs, info.polygonStyle || {color:'#FF6200', weight:2.5, fillColor:'#FF6200', fillOpacity:.12}).addTo(map);
+        mapPolys.push(poly);
+        layers.push(poly);
+      }
+    });
+    if (layers.length) fitBounds = L.featureGroup(layers).getBounds();
+  }
+  if (info.lat && info.lon) {
+    const mk = L.marker([info.lat, info.lon], {icon: info.markerIcon || PIN_A}).addTo(map)
+      .bindPopup(`<div style="font-family:var(--fdx-font);font-size:12px"><strong style="color:#4D148C">${esc(info.address)}</strong><br>${esc(info.comm)}<br><span style="color:#666;font-size:10px">Folio: ${esc(info.folio||'—')}</span></div>`)
+      .openPopup();
+    mapMarkers.push(mk);
+  }
+  if (fitBounds && fitBounds.isValid()) {
+    map.fitBounds(fitBounds.pad(0.12));
+  } else if (info.lat && info.lon) {
+    map.setView([info.lat, info.lon], 18);
+  }
+}
+
+function syncResolverSearchFields(info={}) {
+  acInput.value = String(info.address || '').trim();
+  acList.classList.remove('visible');
+  const numInput = document.getElementById('acNum');
+  const streetInput = document.getElementById('acStreet');
+  if (numInput) numInput.value = String(info.streetNo || '').trim();
+  if (streetInput) {
+    streetInput.value = [info.strName || info.streetName || '', info.strType || '']
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+  }
+}
+
+// ══════════════════════════════════════
+// RDCK CADASTRE QUERY (at lat/lon)
+// ══════════════════════════════════════
+async function queryCadastreAtPoint(lat, lon) {
+  try {
+    const url = `${RDCK_CAD}/query?geometry=${lon},${lat}&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects&outFields=PID,Site_Address,Folio,Actual_Use,City,Lot_Size,Gen_Land_Gross,Gen_Impr_Gross,Legal_Long,Plan_Number&returnGeometry=true&outSR=4326&f=json`;
+    const r = await fetch(url); const d = await r.json();
+    if (!d.features || !d.features.length) { alog('No cadastre at point','warn'); return; }
+    const f = d.features[0]; const p = f.attributes;
+    const fields = [
+      ['PID', p.PID], ['Site Address', p.Site_Address], ['Folio', p.Folio],
+      ['Actual Use', p.Actual_Use], ['Community', p.City],
+      ['Lot Size', p.Lot_Size], ['Plan #', p.Plan_Number],
+      ['Land Value', p.Gen_Land_Gross ? '$'+Number(p.Gen_Land_Gross).toLocaleString() : '—'],
+      ['Improvement', p.Gen_Impr_Gross ? '$'+Number(p.Gen_Impr_Gross).toLocaleString() : '—'],
+      ['Legal', p.Legal_Long],
+    ];
+    updateParcelCard('Cadastre Info', fields);
+
+    // Draw parcel polygon
+    if (f.geometry && f.geometry.rings) {
+      const coords = f.geometry.rings[0].map(c => [c[1], c[0]]);
+      const poly = L.polygon(coords, {color:'#FF6200', weight:2.5, fillColor:'#FF6200', fillOpacity:.12}).addTo(map);
+      mapPolys.push(poly);
+    }
+    alog(`Cadastre: PID=${p.PID} | ${p.Actual_Use} | Land=$${Number(p.Gen_Land_Gross||0).toLocaleString()}`, 'ok');
+  } catch(e) { alog('Cadastre query failed: '+e.message, 'err'); }
+}
+
+// ══════════════════════════════════════
+// PARCEL QUERY AT POINT (BC WFS — from context menu)
+// ══════════════════════════════════════
+async function queryParcelAtPoint(lat, lng) {
+  showLov('mapLov');
+  try {
+    const d = 0.0003;
+    const url = `${BC_WFS}?service=WFS&version=2.0.0&request=GetFeature&typeName=pub:WHSE_CADASTRE.PMBC_PARCEL_FABRIC_POLY_SVW&outputFormat=application/json&bbox=${lat-d},${lng-d},${lat+d},${lng+d},urn:ogc:def:crs:EPSG::4326&count=5`;
+    const r = await fetch(url); const data = await r.json();
+    if (!data.features || !data.features.length) { toast('No BC parcel data here'); return; }
+    const f = data.features[0]; const p = f.properties;
+    const info = [['PID',p.PID],['PIN',p.PIN],['Owner Type',p.OWNER_TYPE],['Municipality',p.MUNICIPALITY],['Area (sqm)',p.FEATURE_AREA_SQM?Number(p.FEATURE_AREA_SQM).toLocaleString():'—']];
+    const html = `<div class="rcard-h"><span>BC Parcel (WFS)</span><span class="cx" onclick="document.getElementById('mapInfo').classList.remove('vis')">&times;</span></div><div class="rcard-b">${info.map(([l,v])=>`<div class="rr"><span class="rl">${l}</span><span class="rv">${esc(String(v||'—'))}</span></div>`).join('')}</div>`;
+    document.getElementById('mapInfo').innerHTML = html;
+    document.getElementById('mapInfo').classList.add('vis');
+    if (f.geometry) {
+      const poly = L.geoJSON(f.geometry, {style:{color:'#4D148C',weight:2.5,fillColor:'#4D148C',fillOpacity:.12}}).addTo(map);
+      mapPolys.push(poly);
+    }
+  } catch(e) { alog('WFS query failed: '+e.message,'err'); }
+  finally { hideLov('mapLov'); }
+}
+
+// ══════════════════════════════════════
+// TAB 2: MAP EXPLORER
+// ══════════════════════════════════════
+let expMap, expSat, expRoads, expParcelsWMS, expRDCK, expRDKBProperty, expRDKBParcels;
+
+function renderInfoSection(title, rows) {
+  return `<div style="margin-bottom:10px"><div style="font-weight:700;color:var(--fdx-purple);margin-bottom:4px">${esc(title)}</div>${rows.map(([l,v])=>`<div class="rr"><span class="rl">${esc(l)}</span><span class="rv">${esc(String(v||'—'))}</span></div>`).join('')}</div>`;
+}
+
+async function queryExplorerInfoAtPoint(lat, lng) {
+  const sections = [];
+  let polygonGeo = null;
+  let polygonStyle = {color:'#FF6200',weight:3,fillColor:'#FF6200',fillOpacity:.15};
+
+  try {
+    const url = `${RDCK_ADDR}/query?geometry=${lng},${lat}&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects&distance=25&units=esriSRUnit_Meter&outFields=ADDRESS,SUITE,FOLIO,COMM&returnGeometry=false&outSR=4326&f=json`;
+    const r = await fetch(url); const d = await r.json();
+    if (d.features && d.features.length) {
+      const a = d.features[0].attributes || {};
+      sections.push(renderInfoSection('RDCK Address Point', [
+        ['Address', a.SUITE ? `${a.SUITE}-${a.ADDRESS}` : a.ADDRESS],
+        ['Suite/Unit', a.SUITE],
+        ['Folio', a.FOLIO],
+        ['Community', a.COMM]
+      ]));
+    }
+  } catch (e) {
+    alog('RDCK address query failed: ' + e.message, 'err');
+  }
+
+  try {
+    const url = `${RDCK_CAD}/query?geometry=${lng},${lat}&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects&outFields=PID,Site_Address,Folio,Actual_Use,City,Lot_Size&returnGeometry=true&outSR=4326&f=json`;
+    const r = await fetch(url); const d = await r.json();
+    if (d.features && d.features.length) {
+      const f = d.features[0];
+      const p = f.attributes || {};
+      sections.push(renderInfoSection('RDCK Cadastre', [
+        ['PID', p.PID],
+        ['Site Address', p.Site_Address],
+        ['Folio', p.Folio],
+        ['Actual Use', p.Actual_Use],
+        ['Community', p.City],
+        ['Lot Size', p.Lot_Size]
+      ]));
+      if (!polygonGeo && f.geometry && f.geometry.rings) {
+        polygonGeo = { type: 'Polygon', coordinates: [f.geometry.rings[0]] };
+      }
+    }
+  } catch (e) {
+    alog('RDCK cadastre query failed: ' + e.message, 'err');
+  }
+
+  try {
+    const url = `${RDKB_PROPERTY}/query?geometry=${lng},${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=FullAddress,apt_no,street_no,street_name,city,Folio,PMBC_PID,PMBC_LegalDescription,PMBC_OwnerType&returnGeometry=true&outSR=4326&f=json`;
+    const r = await fetch(url); const d = await r.json();
+    if (d.features && d.features.length) {
+      const f = d.features[0];
+      const p = f.attributes || {};
+      sections.push(renderInfoSection('RDKB Property Search', [
+        ['Full Address', p.FullAddress],
+        ['Apartment Number', p.apt_no],
+        ['Street Number', p.street_no],
+        ['Street Name', p.street_name],
+        ['City', p.city],
+        ['Folio', p.Folio],
+        ['PID', p.PMBC_PID],
+        ['Owner Type', p.PMBC_OwnerType]
+      ]));
+      if (!polygonGeo && f.geometry && f.geometry.rings) {
+        polygonGeo = { type: 'Polygon', coordinates: [f.geometry.rings[0]] };
+        polygonStyle = {color:'#00805A',weight:3,fillColor:'#00805A',fillOpacity:.12};
+      }
+    }
+  } catch (e) {
+    alog('RDKB property query failed: ' + e.message, 'err');
+  }
+
+  try {
+    const d = 0.0003;
+    const url = `${BC_WFS}?service=WFS&version=2.0.0&request=GetFeature&typeName=pub:WHSE_CADASTRE.PMBC_PARCEL_FABRIC_POLY_SVW&outputFormat=application/json&bbox=${lat-d},${lng-d},${lat+d},${lng+d},urn:ogc:def:crs:EPSG::4326&count=5`;
+    const r = await fetch(url); const data = await r.json();
+    if (data.features && data.features.length) {
+      const f = data.features[0];
+      const p = f.properties || {};
+      sections.push(renderInfoSection('ParcelMap BC', [
+        ['PID', p.PID],
+        ['PIN', p.PIN],
+        ['Owner Type', p.OWNER_TYPE],
+        ['Municipality', p.MUNICIPALITY],
+        ['Area', p.FEATURE_AREA_SQM ? Number(p.FEATURE_AREA_SQM).toLocaleString() + ' sqm' : '—']
+      ]));
+      if (!polygonGeo && f.geometry) {
+        polygonGeo = f.geometry;
+        polygonStyle = {color:'#0066CC',weight:3,fillColor:'#0066CC',fillOpacity:.1};
+      }
+    }
+  } catch (e) {
+    alog('BC parcel query failed: ' + e.message, 'err');
+  }
+
+  if (!sections.length) {
+    toast('No parcel or address data here');
+    return;
+  }
+
+  document.getElementById('expClickBody').innerHTML = sections.join('');
+  document.getElementById('expClickCard').classList.add('vis');
+  if (window._expPoly) expMap.removeLayer(window._expPoly);
+  if (polygonGeo) window._expPoly = L.geoJSON(polygonGeo, {style: polygonStyle}).addTo(expMap);
+}
+
+function initExpMap() {
+  if (expMap) return;
+  expMap = L.map('expMap').setView(CENTER, 14);
+  expSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19}).addTo(expMap);
+  expRoads = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,opacity:.7}).addTo(expMap);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:19}).addTo(expMap);
+  expParcelsWMS = L.tileLayer.wms(BC_WFS,{layers:'pub:WHSE_CADASTRE.PMBC_PARCEL_FABRIC_POLY_SVW',format:'image/png',transparent:true,opacity:.5,maxZoom:19});
+  try { expRDCK = L.esri.dynamicMapLayer({url:RDCK_BASE,opacity:1}); } catch(e){}
+  try { expRDKBProperty = L.esri.dynamicMapLayer({url:RDKB_PROPERTY_ROOT,opacity:.45}); } catch(e){}
+  try {
+    expRDKBParcels = L.esri.featureLayer({
+      url:RDKB_PARCELS,
+      style: () => ({color:'#0066CC', weight:1.5, fillOpacity:0})
+    });
+  } catch(e){}
+
+  document.getElementById('lSat').addEventListener('change',e=>{e.target.checked?expSat.addTo(expMap):expMap.removeLayer(expSat)});
+  document.getElementById('lRoads').addEventListener('change',e=>{e.target.checked?expRoads.addTo(expMap):expMap.removeLayer(expRoads)});
+  document.getElementById('lParcelsWMS').addEventListener('change',e=>{e.target.checked?expParcelsWMS.addTo(expMap):expMap.removeLayer(expParcelsWMS)});
+  document.getElementById('lRDCK').addEventListener('change',e=>{
+    if(!expRDCK){toast('RDCK layer unavailable');e.target.checked=false;return}
+    e.target.checked?expRDCK.addTo(expMap):expMap.removeLayer(expRDCK);
+  });
+  document.getElementById('lRDKBProp').addEventListener('change',e=>{
+    if(!expRDKBProperty){toast('RDKB property layer unavailable');e.target.checked=false;return}
+    e.target.checked?expRDKBProperty.addTo(expMap):expMap.removeLayer(expRDKBProperty);
+  });
+  document.getElementById('lRDKBParcels').addEventListener('change',e=>{
+    if(!expRDKBParcels){toast('RDKB parcel layer unavailable');e.target.checked=false;return}
+    e.target.checked?expRDKBParcels.addTo(expMap):expMap.removeLayer(expRDKBParcels);
+  });
+
+  // Click to query parcel
+  expMap.on('click', async e => {
+    const {lat,lng}=e.latlng;
+    document.getElementById('expLov').classList.add('vis');
+    try {
+      await queryExplorerInfoAtPoint(lat, lng);
+    }catch(e){alog('Exp WFS fail: '+e.message,'err')}
+    finally{document.getElementById('expLov').classList.remove('vis')}
+  });
+
+  document.getElementById('expGoBtn').addEventListener('click',async()=>{
+    const q=document.getElementById('expAddr').value.trim();if(!q)return;
+    try{
+      const url=`${BC_GEO}/addresses.json?addressString=${encodeURIComponent(q)}&maxResults=1&outputSRS=4326`;
+      const r=await fetch(url);const d=await r.json();
+      if(!d.features||!d.features.length){toast('Not found');return}
+      const c=d.features[0].geometry.coordinates;
+      if(window._expMk)expMap.removeLayer(window._expMk);
+      window._expMk=L.marker([c[1],c[0]],{icon:PIN_A}).addTo(expMap).bindPopup(esc(d.features[0].properties.fullAddress)).openPopup();
+      expMap.setView([c[1],c[0]],17);
+    }catch(e){toast(e.message)}
+  });
+  document.getElementById('expAddr').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('expGoBtn').click()});
+}
+
+// ══════════════════════════════════════
+// TAB 3: CADASTRE SEARCH
+// ══════════════════════════════════════
+let cadMap, cadLayers=[];
+
+function initCadMap() {
+  if(cadMap) return;
+  cadMap = L.map('cadMap').setView(CENTER, 14);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19}).addTo(cadMap);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,opacity:.7}).addTo(cadMap);
+  L.tileLayer.wms(BC_WFS,{layers:'pub:WHSE_CADASTRE.PMBC_PARCEL_FABRIC_POLY_SVW',format:'image/png',transparent:true,opacity:.4,maxZoom:19}).addTo(cadMap);
+}
+
+function clearCadLayers(){cadLayers.forEach(l=>cadMap.removeLayer(l));cadLayers=[];}
+
+// Cadastre address search
+document.getElementById('cadSearchBtn').addEventListener('click', async()=>{
+  const addr=document.getElementById('cadAddr').value.trim();
+  const city=document.getElementById('cadCity').value.trim();
+  if(!addr)return;
+  let where=`Site_Address LIKE '%${addr.toUpperCase().replace(/'/g,"''")}%'`;
+  if(city) where+=` AND City='${city.toUpperCase()}'`;
+  showLov('cadLov');
+  try{
+    const url=`${RDCK_CAD}/query?where=${encodeURIComponent(where)}&outFields=PID,Site_Address,Folio,Actual_Use,City,Lot_Size,Gen_Land_Gross,Gen_Impr_Gross&returnGeometry=true&outSR=4326&f=json&resultRecordCount=30&orderByFields=Site_Address`;
+    const r=await fetch(url);const d=await r.json();
+    displayCadResults(d.features||[]);
+  }catch(e){alog('Cadastre search failed: '+e.message,'err')}
+  finally{hideLov('cadLov')}
+});
+
+// PID search
+document.getElementById('cadPIDBtn').addEventListener('click',async()=>{
+  const pid=document.getElementById('cadPID').value.trim();if(!pid)return;
+  const clean=pid.replace(/-/g,'');
+  let where=`PID='${clean}'`;
+  // Also try with dashes
+  if(clean.length===9) where=`PID='${clean}' OR PID='${clean.substring(0,3)}-${clean.substring(3,6)}-${clean.substring(6)}'`;
+  showLov('cadLov');
+  try{
+    const url=`${RDCK_CAD}/query?where=${encodeURIComponent(where)}&outFields=PID,Site_Address,Folio,Actual_Use,City,Lot_Size,Gen_Land_Gross,Gen_Impr_Gross,Legal_Long,Plan_Number&returnGeometry=true&outSR=4326&f=json&resultRecordCount=10`;
+    const r=await fetch(url);const d=await r.json();
+    displayCadResults(d.features||[]);
+  }catch(e){alog('PID search failed: '+e.message,'err')}
+  finally{hideLov('cadLov')}
+});
+
+[document.getElementById('cadAddr'),document.getElementById('cadPID')].forEach(el=>{
+  el.addEventListener('keydown',e=>{if(e.key==='Enter')el.id==='cadPID'?document.getElementById('cadPIDBtn').click():document.getElementById('cadSearchBtn').click()});
+});
+
+function displayCadResults(features) {
+  clearCadLayers();
+  document.getElementById('cadCount').textContent = `(${features.length})`;
+  if(!features.length){document.getElementById('cadResults').innerHTML='<p style="color:var(--fdx-gray-400)">No results.</p>';return}
+  const bounds=L.latLngBounds();
+  let html='';
+  features.forEach((f,i)=>{
+    const p=f.attributes;
+    html+=`<div style="margin-bottom:8px;padding:8px;background:${i%2?'var(--fdx-bg)':'#fff'};border:1px solid var(--fdx-gray-200);border-radius:3px;cursor:pointer" onclick="cadZoom(${i})">`;
+    html+=`<div style="font-weight:700;color:var(--fdx-purple);font-size:11px;margin-bottom:4px">${esc(p.Site_Address||'—')}</div>`;
+    html+=`<div style="font-size:10px;color:var(--fdx-gray-500)">PID: ${esc(p.PID||'—')} | ${esc(p.Actual_Use||'—')}</div>`;
+    html+=`<div style="font-size:10px;color:var(--fdx-gray-600)">Land: $${Number(p.Gen_Land_Gross||0).toLocaleString()} | Impr: $${Number(p.Gen_Impr_Gross||0).toLocaleString()} | Lot: ${esc(p.Lot_Size||'—')}</div>`;
+    html+=`</div>`;
+    if(f.geometry&&f.geometry.rings){
+      const coords=f.geometry.rings[0].map(c=>[c[1],c[0]]);
+      const poly=L.polygon(coords,{color:i===0?'#FF6200':'#4D148C',weight:2,fillColor:i===0?'#FF6200':'#4D148C',fillOpacity:.12}).addTo(cadMap);
+      poly.bindPopup(`<div style="font-size:12px;font-family:var(--fdx-font)"><strong style="color:#4D148C">${esc(p.Site_Address||'')}</strong><br>PID: ${esc(p.PID||'—')}<br>${esc(p.Actual_Use||'')}<br>Land: $${Number(p.Gen_Land_Gross||0).toLocaleString()}</div>`);
+      cadLayers.push(poly);
+      bounds.extend(poly.getBounds());
+    }
+  });
+  document.getElementById('cadResults').innerHTML=html;
+  if(bounds.isValid())cadMap.fitBounds(bounds,{padding:[40,40]});
+  // Store for zoom
+  window._cadFeatures=features;
+}
+
+window.cadZoom=function(i){
+  if(!window._cadFeatures||!window._cadFeatures[i])return;
+  const f=window._cadFeatures[i];
+  if(f.geometry&&f.geometry.rings){
+    const coords=f.geometry.rings[0].map(c=>[c[1],c[0]]);
+    cadMap.fitBounds(L.latLngBounds(coords),{padding:[60,60]});
+  }
+};
+
+// ══════════════════════════════════════
+// TAB SWITCHING
+// ══════════════════════════════════════
+document.querySelectorAll('.nav-tab').forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.tc').forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    const target=tab.dataset.tab;
+    document.querySelector(`.tc[data-tab="${target}"]`).classList.add('active');
+    setTimeout(()=>{
+      if(target==='resolve')map.invalidateSize();
+      if(target==='explore'){initExpMap();expMap.invalidateSize();}
+      if(target==='parcel'){initCadMap();cadMap.invalidateSize();}
+    },100);
+  });
+});
+
+// ══════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function showLov(id){document.getElementById(id).classList.add('vis')}
+function hideLov(id){document.getElementById(id).classList.remove('vis')}
+
+// ══════════════════════════════════════
+// API HEALTH CHECKS
+// ══════════════════════════════════════
+async function checkAPIs(){
+  alog('Running health checks...','info');
+  const checks=[
+    ['sRDCKAddr', `${RDCK_ADDR}/query?where=1%3D1&resultRecordCount=1&f=json`, d=>d.features&&d.features.length>0],
+    ['sRDCKCad',  `${RDCK_CAD}/query?where=1%3D1&resultRecordCount=1&f=json`, d=>d.features&&d.features.length>0],
+    ['sBCGeo',    `${BC_GEO}/addresses.json?addressString=Castlegar,BC&maxResults=1&outputSRS=4326`, d=>d.features&&d.features.length>0],
+    ['sWMS',      `${BC_WFS}?service=WMS&version=1.1.1&request=GetCapabilities`, null],
+  ];
+  for(const [id,url,validate] of checks){
+    try{
+      const r=await fetch(url);
+      if(validate){const d=await r.json();setS(id,validate(d));}
+      else setS(id,r.ok);
+    }catch(e){setS(id,false)}
+  }
+  setSNeutral('sOSRM', 'IDLE');
+  alog('Health checks complete.','ok');
+}
+function setS(id,ok){const e=document.getElementById(id);e.className=`badge ${ok?'ok':'err'}`;e.textContent=ok?'ONLINE':'OFFLINE'}
+function setSNeutral(id,text){const e=document.getElementById(id);e.className='badge ld';e.textContent=text}
+
+setTimeout(checkAPIs, PERF.healthCheckDelayMs);
+alog('BC Parcel Explorer ready. RDCK + BC Geocoder + ParcelMap BC.','ok');
+setTimeout(() => {
+  ensureLocalAutocompleteRows().catch(err => {
+    alog('Local address cache preload skipped: ' + err.message, 'warn');
+  });
+}, 250);
+</script>
+</body>
+</html>
