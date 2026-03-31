@@ -1,0 +1,12 @@
+{
+  "name": "mapex",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "export:addresses": "node scripts/export-address-data.mjs",
+    "export:layers": "node scripts/export-layer-data.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.58.2"
+  }
+}

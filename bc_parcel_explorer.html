@@ -8,9 +8,9 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/esri-leaflet@3.0.12/dist/esri-leaflet.js"></script>
   <style>
-    @font-face { font-family:'FedEx Sans'; src:url('https://payment.apac.fedex.com/css/assets/fonts/FedExSans_W-Regular.woff') format('woff'); font-weight:400; font-display:swap; }
-    @font-face { font-family:'FedEx Sans'; src:url('https://payment.apac.fedex.com/css/assets/fonts/FedExSans_W-Bold.woff') format('woff'); font-weight:700; font-display:swap; }
-    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+    @font-face { font-family:'FedEx Sans'; src:url('fonts/FedExSans_W-Light.woff') format('woff'); font-weight:300; font-style:normal; font-display:swap; }
+    @font-face { font-family:'FedEx Sans'; src:url('fonts/FedExSans_W-Regular.woff') format('woff'); font-weight:400; font-style:normal; font-display:swap; }
+    @font-face { font-family:'FedEx Sans'; src:url('fonts/FedExSans_W-Bold.woff') format('woff'); font-weight:700; font-style:normal; font-display:swap; }
 
     *{box-sizing:border-box;margin:0;padding:0}
     :root{
@@ -22,7 +22,7 @@
       --fdx-gray-700:#333333;--fdx-gray-900:#1A1A1A;
       --fdx-green:#00805A;--fdx-red:#CC0000;
       --fdx-info-blue:#0066CC;--fdx-info-bg:#E8F0FE;
-      --fdx-font:'FedEx Sans','Roboto','Helvetica Neue',Helvetica,Arial,sans-serif;
+      --fdx-font:'FedEx Sans','Helvetica Neue',Helvetica,Arial,sans-serif;
     }
     body{font-family:var(--fdx-font);background:var(--fdx-bg);color:var(--fdx-gray-900);height:100vh;overflow:hidden;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased}
     .top-bar{height:4px;background:var(--fdx-purple);flex-shrink:0}
@@ -64,9 +64,15 @@
     .ac-list.visible{display:block}
     .ac-item{padding:10px 12px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--fdx-gray-100);display:flex;justify-content:space-between;align-items:center;gap:8px}
     .ac-item:hover{background:#EDE4F7}
+    .ac-item.dup{padding-left:8px;border-left:4px solid var(--fdx-orange);background:#FFF9F3}
+    .ac-item.dup:hover{background:#FFF1E4}
     .ac-item .ac-addr{color:var(--fdx-gray-900);font-weight:500}
     .ac-item .ac-comm{color:var(--fdx-gray-400);font-size:11px;white-space:nowrap}
+    .ac-item .ac-comm.warn{color:var(--fdx-orange);font-weight:700}
     .ac-item .ac-folio{color:var(--fdx-purple);font-size:10px;font-weight:700;font-family:'Courier New',monospace}
+    .ac-item .ac-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px}
+    .ac-item .ac-src{font-size:10px;color:var(--fdx-gray-500);text-transform:uppercase;letter-spacing:.4px}
+    .ac-item .ac-dup-flag{display:inline-flex;align-items:center;padding:2px 6px;border-radius:999px;background:#FFF3E8;color:var(--fdx-orange);font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
     .ac-count{padding:6px 12px;font-size:10px;color:var(--fdx-gray-400);font-weight:700;text-transform:uppercase;letter-spacing:.5px;background:var(--fdx-bg);border-bottom:1px solid var(--fdx-gray-200)}
 
     /* ── Layer toggles ── */
@@ -155,7 +161,7 @@
   <div class="panel">
     <div class="psec">
       <h3>Address Resolution</h3>
-      <p class="hint">Type an address, street number, or street name. Results come live from RDCK and RDKB address data. Click a result to plot it.</p>
+      <p class="hint">Type an address, street number, or street name. Results come from the local RDCK and RDKB caches and show every matching address so cross-city duplicates are easy to spot.</p>
       <div class="fld ac-wrap">
         <label>Search Address</label>
         <input type="text" id="acInput" placeholder="e.g. 1545 or Columbia or 460 Columbia Ave">
@@ -182,12 +188,6 @@
       <div class="ltog"><input type="checkbox" id="mRDKBParcels"><div class="ldot" style="background:#0066CC"></div><span>RDKB PMBC Parcels</span></div>
       <div class="ltog"><input type="checkbox" id="mRDKBAddr"><div class="ldot" style="background:#F4B400"></div><span>RDKB Address Points</span></div>
       <p class="hint">These toggles control map overlays only.</p>
-    </div>
-
-    <div class="psec">
-      <h3>Search Source</h3>
-      <div class="ltog"><input type="checkbox" id="mAutoSource" checked><div class="ldot" style="background:linear-gradient(135deg,#4D148C 0%,#00805A 100%)"></div><span id="mAutoSourceLabel">Auto-select RDCK / RDKB source</span></div>
-      <p class="hint" id="mAutoSourceHint">Auto mode tries both regional datasets and prefers the last successful region. Turn it off to lock searches and map clicks to the last region you picked.</p>
     </div>
 
     <div class="psec">
@@ -1284,6 +1284,57 @@ function buildAutocompleteCacheKey(mode, query, sources) {
   return `${mode}|${sources.rdck ? '1' : '0'}${sources.rdkb ? '1' : '0'}|${normalizeAcText(query)}`;
 }
 
+function escapeRegExp(v='') {
+  return String(v || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function buildAutocompleteConflictKey(item={}) {
+  let value = normalizeDisplayAddress(
+    item.address ||
+    item.rawAddress ||
+    buildLocalStreetText([item.streetNo, item.strName || item.streetName, item.strType]) ||
+    ''
+  );
+  const comm = normalizeDisplayAddress(item.comm || '');
+  if (comm && value) {
+    value = value.replace(new RegExp(`,\\s*${escapeRegExp(comm)}(?:\\s*,\\s*BC)?$`, 'i'), '');
+  }
+  value = value.replace(/,\s*BC$/i, '').trim();
+  return normalizeAcText(value);
+}
+
+function buildAutocompleteConflictMap(items=[]) {
+  const map = new Map();
+  items.forEach(item => {
+    const key = buildAutocompleteConflictKey(item);
+    if (!key) return;
+    let entry = map.get(key);
+    if (!entry) {
+      entry = { count: 0, communities: new Set(), communityLabels: new Map() };
+      map.set(key, entry);
+    }
+    entry.count += 1;
+    if (item.comm) {
+      const normalizedComm = normalizeAcText(item.comm);
+      entry.communities.add(normalizedComm);
+      if (!entry.communityLabels.has(normalizedComm)) {
+        entry.communityLabels.set(normalizedComm, normalizeDisplayAddress(item.comm));
+      }
+    }
+  });
+  return map;
+}
+
+function buildAutocompleteSelectionText(info={}) {
+  const address = normalizeDisplayAddress(info.address || '');
+  const comm = normalizeDisplayAddress(info.comm || '');
+  if (!address) return '';
+  if (!comm) return address;
+  return normalizeAcText(address).includes(normalizeAcText(comm))
+    ? address
+    : `${address}, ${comm}`;
+}
+
 function renderAutocompleteLoading(text='Loading local address cache...') {
   acList.innerHTML = `<div class="ac-count">${esc(text)}</div>`;
   acList.classList.add('visible');
@@ -1692,17 +1743,6 @@ function updateResolverSourceModeUI() {
 }
 
 function chooseSearchSources(query, unitSearch) {
-  const q = normalizeAcText(query);
-  const hasRDCKHint = RDCK_LOCALITY_HINTS.some(name => q.includes(name));
-  const hasRDKBHint = RDKB_LOCALITY_HINTS.some(name => q.includes(name));
-  if (!isResolverAutoSourceEnabled()) {
-    if (currentRegionBias === 'rdck') return { rdck:true, rdkb:false, geo:!!unitSearch };
-    if (currentRegionBias === 'rdkb') return { rdck:false, rdkb:true, geo:!!unitSearch };
-  }
-  if (hasRDCKHint && !hasRDKBHint) return { rdck:true, rdkb:false, geo:!!unitSearch };
-  if (hasRDKBHint && !hasRDCKHint) return { rdck:false, rdkb:true, geo:!!unitSearch };
-  if (currentRegionBias === 'rdck') return { rdck:true, rdkb:false, geo:!!unitSearch };
-  if (currentRegionBias === 'rdkb') return { rdck:false, rdkb:true, geo:!!unitSearch };
   return { rdck:true, rdkb:true, geo:!!unitSearch };
 }
 
@@ -1805,12 +1845,30 @@ function renderAutocompleteItems(items, sourceLabel='RDCK') {
     return;
   }
   acList.innerHTML = `<div class="ac-count">${items.length} result${items.length>1?'s':''} from ${esc(sourceLabel)}</div>`;
+  const conflictMap = buildAutocompleteConflictMap(items);
   items.forEach(item => {
+    const conflict = conflictMap.get(buildAutocompleteConflictKey(item));
+    const communityCount = conflict ? conflict.communities.size : 0;
+    const hasConflict = communityCount > 1;
+    const conflictCommunities = conflict
+      ? [...conflict.communityLabels.values()].slice(0, 3)
+      : [];
+    const extraCommunities = Math.max(communityCount - conflictCommunities.length, 0);
+    const conflictText = communityCount > 1
+      ? `Cities: ${conflictCommunities.join(', ')}${extraCommunities ? ` +${extraCommunities}` : ''}`
+      : 'Check match';
+    const communityText = item.comm || item.metaTop || '';
     const div = document.createElement('div');
-    div.className = 'ac-item';
+    div.className = `ac-item${hasConflict ? ' dup' : ''}`;
     div.innerHTML = `
-      <div><span class="ac-addr">${esc(item.address || '—')}</span></div>
-      <div style="text-align:right"><span class="ac-comm">${esc(item.metaTop || '')}</span><br><span class="ac-folio">${esc(item.metaBottom || '')}</span></div>
+      <div style="min-width:0;flex:1">
+        <div><span class="ac-addr">${esc(item.address || '—')}</span></div>
+        <div class="ac-meta">
+          <span class="ac-src">${esc(item.source || '')}</span>
+          ${hasConflict ? `<span class="ac-dup-flag">${esc(conflictText)}</span>` : ''}
+        </div>
+      </div>
+      <div style="text-align:right;min-width:128px"><span class="ac-comm${hasConflict ? ' warn' : ''}">${esc(communityText)}</span><br><span class="ac-folio">${esc(item.metaBottom || '')}</span></div>
     `;
     div.addEventListener('click', async () => {
       acList.classList.remove('visible');
@@ -2066,7 +2124,7 @@ function selectAddress(info) {
 }
 
 function syncResolverSearchFields(info={}) {
-  acInput.value = String(info.address || '').trim();
+  acInput.value = buildAutocompleteSelectionText(info);
   acList.classList.remove('visible');
   const numInput = document.getElementById('acNum');
   const streetInput = document.getElementById('acStreet');
