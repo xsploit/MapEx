@@ -350,12 +350,17 @@ const PERF = { autocompleteDebounceMs: 550, maxLogLines: 180, healthCheckDelayMs
 const LOCAL_AUTOCOMPLETE_MANIFEST_URL = 'data/address-export-manifest.json';
 const LOCAL_RDCK_DATA_URL = 'data/rdck-addresses.json';
 const LOCAL_RDKB_DATA_URL = 'data/rdkb-addresses.json';
+const LOCAL_DERIVED_ADDRESS_SEARCH_URL = 'data/derived/address-search.json';
 const LOCAL_CACHE_DB_NAME = 'mapex-local-cache';
 const LOCAL_CACHE_DB_VERSION = 1;
 const LOCAL_CACHE_STORE = 'kv';
 const LOCAL_CACHE_VERSION_KEY = 'autocompleteVersion';
 const LOCAL_CACHE_ROWS_KEY = 'autocompleteRows';
+const LOCAL_CACHE_DERIVED_ROWS_KEY = 'addressSearchRows';
 const LOCAL_AUTOCOMPLETE_LIMIT = 20;
+const LOCAL_POINT_MATCH_MAX_METERS = 500;
+const LOCAL_POINT_MATCH_MAX_RESULTS = 8;
+let rdkbRemoteBlocked = false;
 
 // ══════════════════════════════════════
 // LOGGING
@@ -386,6 +391,46 @@ window.fetch = async function(url, opts) {
     throw e;
   }
 };
+
+function isRDKBLiveEnabled() {
+  return !rdkbRemoteBlocked;
+}
+
+function disableRDKBLive(reason='') {
+  if (rdkbRemoteBlocked) return;
+  rdkbRemoteBlocked = true;
+  alog(`RDKB live API disabled${reason ? ` (${reason})` : ''}. Using local data only.`, 'warn');
+  toast('RDKB live lookup unavailable; using local cache only.', 3500);
+}
+
+async function checkRDKBCloudflareBlock(resp, fallbackUrl='') {
+  if (!resp) return false;
+  const target = String(resp.url || fallbackUrl || '').toLowerCase();
+  if (!target.includes('mapping.rdkb.com')) return false;
+  if ([403, 429, 503, 520, 521, 522, 524, 530].includes(resp.status)) {
+    disableRDKBLive(`HTTP ${resp.status}`);
+    return true;
+  }
+  if (resp.status >= 400) return false;
+  const contentType = String(resp.headers.get('content-type') || '').toLowerCase();
+  if (!contentType.includes('json')) {
+    try {
+      const text = await resp.clone().text();
+      if (/cloudflare|just a moment|attention required|ray id/i.test(text)) {
+        disableRDKBLive('Cloudflare challenge response');
+        return true;
+      }
+    } catch(e) {}
+  }
+  return false;
+}
+
+function getRemoteResolverPriority() {
+  const priority = getResolverSourcePriority();
+  const filtered = priority.filter(region => region !== 'rdkb' || isRDKBLiveEnabled());
+  if (filtered.length) return filtered;
+  return ['rdck'];
+}
 
 // ══════════════════════════════════════
 // TOAST
@@ -605,6 +650,14 @@ function calcDistSq(lat1, lon1, lat2, lon2) {
   return (dLat * dLat) + (dLon * dLon);
 }
 
+function estimateMeters(lat1, lon1, lat2, lon2) {
+  if (!Number.isFinite(lat1) || !Number.isFinite(lon1) || !Number.isFinite(lat2) || !Number.isFinite(lon2)) return Infinity;
+  const dLat = (lat1 - lat2) * 111139;
+  const meanLat = (lat1 + lat2) / 2 * Math.PI / 180;
+  const dLon = (lon1 - lon2) * 111139 * Math.cos(meanLat);
+  return Math.hypot(dLat, dLon);
+}
+
 function buildStreetViewUrl(lat, lon) {
   return `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${encodeURIComponent(lat + ',' + lon)}`;
 }
@@ -798,11 +851,25 @@ async function fetchRDCKPopupPages(lat, lon, options = {}) {
 }
 
 async function fetchRDKBPopupPages(lat, lon) {
+  if (!isRDKBLiveEnabled()) return [];
+  const propertyUrl = `${RDKB_PROPERTY}/query?geometry=${lon},${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=OBJECTID,FullAddress,apt_no,street_no,street_name,city,Folio,PMBC_PID,PMBC_LegalDescription,PMBC_OwnerType&returnGeometry=true&outSR=4326&f=json&resultRecordCount=10&orderByFields=FullAddress,Folio`;
+  const addrUrl = `${RDKB_ADDRESS_POINTS}/query?geometry=${lon},${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&distance=30&units=esriSRUnit_Meter&outFields=OBJECTID_1,FULL_ADDRESS,Unit_Count,Building_Address,BUILDING_NAME,LOCALITY,ADDRESS_POINT_TYPE&returnGeometry=true&outSR=4326&f=json&resultRecordCount=10&orderByFields=FULL_ADDRESS`;
   const [propertyResp, addrResp] = await Promise.all([
-    fetch(`${RDKB_PROPERTY}/query?geometry=${lon},${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=OBJECTID,FullAddress,apt_no,street_no,street_name,city,Folio,PMBC_PID,PMBC_LegalDescription,PMBC_OwnerType&returnGeometry=true&outSR=4326&f=json&resultRecordCount=10&orderByFields=FullAddress,Folio`),
-    fetch(`${RDKB_ADDRESS_POINTS}/query?geometry=${lon},${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&distance=30&units=esriSRUnit_Meter&outFields=OBJECTID_1,FULL_ADDRESS,Unit_Count,Building_Address,BUILDING_NAME,LOCALITY,ADDRESS_POINT_TYPE&returnGeometry=true&outSR=4326&f=json&resultRecordCount=10&orderByFields=FULL_ADDRESS`)
+    (async () => {
+      const r = await fetch(propertyUrl);
+      if (await checkRDKBCloudflareBlock(r, propertyUrl)) return null;
+      return r;
+    })(),
+    (async () => {
+      const r = await fetch(addrUrl);
+      if (await checkRDKBCloudflareBlock(r, addrUrl)) return null;
+      return r;
+    })()
   ]);
-  const [propertyData, addrData] = await Promise.all([propertyResp.json(), addrResp.json()]);
+  const [propertyData, addrData] = await Promise.all([
+    propertyResp ? propertyResp.json() : { features: [] },
+    addrResp ? addrResp.json() : { features: [] }
+  ]);
   const propertyPages = (propertyData.features || []).map(f => {
     const a = f.attributes || {};
     return {
@@ -910,11 +977,28 @@ map.on('click', async e => {
   try {
     let pages = [];
     const priority = getResolverSourcePriority();
-    for (const region of priority) {
-      pages = region === 'rdkb'
-        ? await fetchRDKBPopupPages(e.latlng.lat, e.latlng.lng)
-        : await fetchRDCKPopupPages(e.latlng.lat, e.latlng.lng);
-      if (pages.length) break;
+    const remotePriority = getRemoteResolverPriority();
+    const prioritySources = priority.reduce((acc, region) => {
+      if (region) acc[region] = true;
+      return acc;
+    }, {});
+
+    try {
+      const localRows = await ensureLocalAutocompleteRows().then(() => getLocalAddressRowsAtPoint(e.latlng.lat, e.latlng.lng, {
+        sources: prioritySources,
+        maxDistanceMeters: LOCAL_POINT_MATCH_MAX_METERS * 1.8,
+        maxResults: 4
+      }));
+      if (localRows.length) pages = buildPopupPagesFromLocalRows(localRows);
+    } catch(e) {}
+
+    if (!pages.length) {
+      for (const region of remotePriority) {
+        pages = region === 'rdkb'
+          ? await fetchRDKBPopupPages(e.latlng.lat, e.latlng.lng)
+          : await fetchRDCKPopupPages(e.latlng.lat, e.latlng.lng);
+        if (pages.length) break;
+      }
     }
     if (!pages.length) return;
     rdckPopupState = {
@@ -994,7 +1078,41 @@ document.getElementById('ctxLookupAddr').addEventListener('click', async () => {
   ctxMenu.classList.remove('vis');
   showLov('mapLov');
   try {
-    for (const region of getResolverSourcePriority()) {
+    const priority = getResolverSourcePriority();
+    const prioritySources = priority.reduce((acc, region) => {
+      if (region) acc[region] = true;
+      return acc;
+    }, {});
+
+    try {
+      const localRows = await ensureLocalAutocompleteRows().then(() => getLocalAddressRowsAtPoint(ctxLL.lat, ctxLL.lng, {
+        sources: prioritySources,
+        maxDistanceMeters: LOCAL_POINT_MATCH_MAX_METERS * 1.8,
+        maxResults: 4
+      }));
+      if (localRows.length) {
+        const nearest = localRows[0];
+        const localKind = nearest.kind === 'rdkb' ? 'rdkb' : 'rdck';
+        setRegionBias(localKind);
+        selectAddress({
+          address: nearest.address,
+          lat: nearest.lat,
+          lon: nearest.lon,
+          comm: nearest.comm,
+          folio: nearest.folio,
+          streetNo: nearest.streetNo || '',
+          strName: nearest.strName || '',
+          strType: nearest.strType || '',
+          source: nearest.source || (nearest.kind === 'rdkb' ? 'RDKB Address Cache' : 'RDCK Address Cache'),
+          extra: { 'Suite/Unit': nearest.suite || '—' }
+        });
+        if (nearest.lat && nearest.lon) await queryCadastreAtPoint(nearest.lat, nearest.lon);
+        return;
+      }
+    } catch (e) {}
+
+    const remotePriority = getRemoteResolverPriority();
+    for (const region of remotePriority) {
       if (region === 'rdck') {
         const url = `${RDCK_ADDR}/query?geometry=${ctxLL.lng},${ctxLL.lat}&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects&distance=80&units=esriSRUnit_Meter&outFields=ADDRESS,SUITE,STREETNO,STRNAME,STRTYPE,COMM,FOLIO&returnGeometry=true&f=json&outSR=4326`;
         const r = await fetch(url); const d = await r.json();
@@ -1029,6 +1147,7 @@ document.getElementById('ctxLookupAddr').addEventListener('click', async () => {
 
       const rdkbUrl = `${RDKB_PROPERTY}/query?geometry=${ctxLL.lng},${ctxLL.lat}&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects&outFields=FullAddress,apt_no,street_no,street_name,city,Folio,PMBC_PID,PMBC_LegalDescription,PMBC_OwnerType&returnGeometry=true&outSR=4326&f=json`;
       const rdkbResp = await fetch(rdkbUrl);
+      if (await checkRDKBCloudflareBlock(rdkbResp, rdkbUrl)) continue;
       const rdkbData = await rdkbResp.json();
       if (rdkbData.features && rdkbData.features.length) {
         const first = rdkbData.features[0].attributes || {};
@@ -1138,6 +1257,8 @@ const acList = document.getElementById('acList');
 const autoSourceToggle = document.getElementById('mAutoSource');
 let localAutocompleteRows = [];
 let localAutocompleteLoadPromise = null;
+let localDerivedRows = [];
+let localDerivedLoadPromise = null;
 let localAutocompleteDisabledReason = '';
 const RDCK_LOCALITY_HINTS = ['CASTLEGAR', 'NELSON', 'CRESTON', 'SALMO', 'KASLO', 'SLOCAN', 'SLOCAN PARK', 'SLOCAN VALLEY', 'NAKUSP', 'NEW DENVER', 'SILVERTON', 'CRAWFORD BAY', 'BALFOUR', 'BLUEBERRY', 'ROBSON', 'THRUMS', 'SHOREACRES', 'WINLAW', 'KASLO'];
 const RDKB_LOCALITY_HINTS = ['TRAIL', 'ROSSLAND', 'GENELLE', 'JANELLE', 'GRAND FORKS', 'CHRISTINA LAKE', 'GREENWOOD', 'MIDWAY', 'FRUITVALE', 'WARFIELD', 'MONTROSE', 'CASCADE', 'BEAVERDELL', 'WESTBRIDGE', 'ROCK CREEK'];
@@ -1232,10 +1353,13 @@ function buildRDKBLocalDisplayAddress(row={}) {
   ].filter(Boolean).join(', '));
 }
 
-function buildLocalAutocompleteRows(rdckRows=[], rdkbPayload=[]) {
+function buildLocalAutocompleteRows(rdckRows=[], rdkbPayload=[], derivedPayload=[]) {
   const rdkbRows = Array.isArray(rdkbPayload)
     ? rdkbPayload
     : ((rdkbPayload && Array.isArray(rdkbPayload.rows)) ? rdkbPayload.rows : []);
+  const derivedRows = Array.isArray(derivedPayload)
+    ? derivedPayload
+    : ((derivedPayload && Array.isArray(derivedPayload.rows)) ? derivedPayload.rows : []);
 
   const rdckItems = (rdckRows || []).map(row => finalizeLocalAutocompleteRow({
     kind: 'rdck',
@@ -1253,6 +1377,8 @@ function buildLocalAutocompleteRows(rdckRows=[], rdkbPayload=[]) {
     metaTop: row.community || 'RDCK',
     metaBottom: row.suite ? `Unit ${row.suite}${row.folio ? ' | ' + row.folio : ''}` : (row.folio || 'RDCK'),
     source: 'RDCK Address Cache',
+    rawSource: 'localCache',
+    raw: row,
     sortRank: row.suite ? 0 : 2
   }));
 
@@ -1273,14 +1399,167 @@ function buildLocalAutocompleteRows(rdckRows=[], rdkbPayload=[]) {
       folio: row.folio || '',
       streetNo: row.streetNo || '',
       streetName,
-      metaTop: row.locality || row.city || 'RDKB',
-      metaBottom: row.suite ? `Unit ${row.suite}${row.folio ? ' | ' + row.folio : ''}` : (row.folio || 'RDKB'),
-      source: 'RDKB Address Cache',
-      sortRank: row.suite ? 0.5 : 2.5
-    });
+    metaTop: row.locality || row.city || 'RDKB',
+    metaBottom: row.suite ? `Unit ${row.suite}${row.folio ? ' | ' + row.folio : ''}` : (row.folio || 'RDKB'),
+    source: 'RDKB Address Cache',
+    rawSource: 'localCache',
+    raw: row,
+    sortRank: row.suite ? 0.5 : 2.5
+  });
   });
 
-  return [...rdckItems, ...rdkbItems];
+  const derivedItems = derivedRows
+    .map(buildDerivedAutocompleteRow)
+    .filter(Boolean)
+    .filter(r => r && r.address);
+
+  return [...rdckItems, ...rdkbItems, ...derivedItems];
+}
+
+const STREET_NAME_TYPE_TOKENS = new Set([
+  'AVE','AVENUE','ST','STREET','RD','ROAD','DR','DRIVE','BLVD','BOULEVARD',
+  'HWY','HIGHWAY','LN','LANE','WAY','PL','PLACE','CRT','COURT','CRES','CRESCENT',
+  'PKWY','PARKWAY','TERR','TERRACE','CIR','CIRCLE','LOOP'
+]);
+
+function splitStreetNameAndType(v='') {
+  const parts = normalizeDisplayAddress(v).split(' ').filter(Boolean);
+  if (!parts.length) return { streetName:'', streetType:'' };
+  const last = parts[parts.length - 1];
+  if (!STREET_NAME_TYPE_TOKENS.has(last)) return { streetName: parts.join(' '), streetType:'' };
+  return {
+    streetName: parts.slice(0, -1).join(' ') || last,
+    streetType: last
+  };
+}
+
+function buildDerivedAutocompleteRow(raw={}) {
+  const source = String(raw.source || '').toLowerCase();
+  const kind = source === 'rdkb' ? 'rdkb' : 'rdck';
+  const streetName = normalizeDisplayAddress(raw.streetName || '');
+  const split = splitStreetNameAndType(streetName);
+  const displayAddress = normalizeDisplayAddress(raw.displayAddress || raw.fullAddress || '');
+  const base = {
+    kind,
+    address: displayAddress,
+    rawAddress: normalizeDisplayAddress(raw.fullAddress || displayAddress || ''),
+    suite: String(raw.unit || '').trim(),
+    lat: coerceFiniteNumber(raw.lat),
+    lon: coerceFiniteNumber(raw.lon),
+    comm: normalizeDisplayAddress(raw.locality || ''),
+    folio: String(raw.folio || '').trim(),
+    streetNo: String(raw.streetNo || '').trim(),
+    streetName: buildLocalStreetText([split.streetName]),
+    strName: split.streetName,
+    strType: split.streetType,
+    metaTop: raw.locality || (kind === 'rdkb' ? 'RDKB' : 'RDCK'),
+    source: kind === 'rdkb' ? 'RDKB Address Search (local)' : 'RDCK Address Search (local)',
+    sortRank: raw.unit ? 0 : 2,
+    pid: String(raw.pid || '').trim(),
+    coordSource: raw.coordSource || '',
+    rawSource: 'derived',
+    raw
+  };
+  if (base.unit) {
+    base.metaBottom = `Unit ${base.suite}${base.folio ? ' | ' + base.folio : ''}`;
+  } else if (base.folio) {
+    base.metaBottom = base.folio;
+  } else {
+    base.metaBottom = kind === 'rdkb' ? 'RDKB' : 'RDCK';
+  }
+  return finalizeLocalAutocompleteRow(base);
+}
+
+function getLocalAddressRowsAtPoint(lat, lon, opts={}) {
+  const rows = localAutocompleteRows;
+  const sources = opts.sources || {};
+  const maxDistanceMeters = Number(opts.maxDistanceMeters) || LOCAL_POINT_MATCH_MAX_METERS;
+  const maxResults = Number(opts.maxResults) || LOCAL_POINT_MATCH_MAX_RESULTS;
+  const prioritize = getResolverSourcePriority();
+  const allowed = new Set(
+    (Object.keys(sources).length ? Object.keys(sources).filter(k => sources[k]) : prioritize).filter(Boolean)
+  );
+  if (!rows.length || !Number.isFinite(lat) || !Number.isFinite(lon)) return [];
+  const matches = rows
+    .filter(r => !r || !r.kind ? false : allowed.has(r.kind))
+    .map(r => {
+      if (!Number.isFinite(r.lat) || !Number.isFinite(r.lon)) return null;
+      return { row: r, distanceMeters: estimateMeters(lat, lon, r.lat, r.lon) };
+    })
+    .filter(item => item && item.distanceMeters <= maxDistanceMeters)
+    .sort((a, b) => a.distanceMeters - b.distanceMeters)
+    .slice(0, maxResults)
+    .map(item => ({ ...item.row, _distanceMeters: item.distanceMeters }));
+  if (!matches.length) return [];
+  return matches;
+}
+
+function buildPopupPagesFromLocalRows(rows=[]) {
+  return (rows || []).flatMap((r, idx) => {
+    if (r.kind === 'rdck') {
+      const titleSuffix = rows.length > 1 ? ` (local ${idx + 1})` : ' (local)';
+      const addressPage = {
+        kind: 'address',
+        title: `Address Point${titleSuffix}`,
+        geometry: null,
+        lat: r.lat,
+        lon: r.lon,
+        rows: [
+          ['Address', r.address],
+          ['Suite/Unit', r.suite],
+          ['Number', r.streetNo],
+          ['Street Name', r.strName || r.streetName],
+          ['Street Type', r.strType],
+          ['Community', r.comm],
+          ['Folio', r.folio],
+          ['Source', r.source],
+          ['Coord Source', r.coordSource || 'local'],
+          ['Distance', r._distanceMeters ? `${r._distanceMeters.toFixed(0)}m` : '—']
+        ]
+      };
+      const cadPage = !r.pid ? null : {
+        kind: 'cadastre',
+        title: `Cadastre (local cache)${titleSuffix}`,
+        geometry: null,
+        rows: [
+          ['PID', r.pid],
+          ['Folio', r.folio || '—'],
+          ['Community', r.comm || '—']
+        ]
+      };
+      return cadPage ? [addressPage, cadPage] : [addressPage];
+    }
+    if (r.kind === 'rdkb') {
+      const titleSuffix = rows.length > 1 ? ` (local ${idx + 1})` : ' (local)';
+      return [{
+        kind: 'rdkb-property',
+        title: `RDKB Property (local)${titleSuffix}`,
+        geometry: null,
+        rows: [
+          ['Full Address', r.address],
+          ['Suite/Unit', r.suite || '—'],
+          ['Street Number', r.streetNo || '—'],
+          ['Street Name', r.strName || r.streetName || '—'],
+          ['City', r.comm || '—'],
+          ['Folio', r.folio || '—'],
+          ['PID', r.pid || '—'],
+          ['Source', r.source],
+          ['Distance', r._distanceMeters ? `${r._distanceMeters.toFixed(0)}m` : '—']
+        ]
+      }];
+    }
+    return [];
+  });
+}
+
+function resolveLocalCadastreFallback(lat, lon, priority) {
+  const sources = priority && Array.isArray(priority) ? priority.reduce((acc, s) => (acc[s] = true, acc), {}) : { rdck: true, rdkb: true };
+  const candidates = getLocalAddressRowsAtPoint(lat, lon, {
+    sources,
+    maxDistanceMeters: Math.max(LOCAL_POINT_MATCH_MAX_METERS, 1200),
+    maxResults: 6
+  });
+  return candidates.find(r => r.pid) || null;
 }
 
 function buildAutocompleteCacheKey(mode, query, sources) {
@@ -1433,8 +1712,10 @@ async function ensureLocalAutocompleteRows() {
     const db = await openLocalCacheDb().catch(() => null);
     const cachedVersion = db ? await idbGet(db, LOCAL_CACHE_VERSION_KEY) : null;
     const cachedRows = db ? await idbGet(db, LOCAL_CACHE_ROWS_KEY) : null;
+    const cachedDerivedRows = db ? await idbGet(db, LOCAL_CACHE_DERIVED_ROWS_KEY) : null;
     if (cachedVersion === manifest.exportedAt && Array.isArray(cachedRows) && cachedRows.length) {
       localAutocompleteRows = cachedRows;
+      localDerivedRows = Array.isArray(cachedDerivedRows) ? cachedDerivedRows : [];
       alog(`Local address cache ready from IndexedDB (${localAutocompleteRows.length} rows).`, 'ok');
       return localAutocompleteRows;
     }
@@ -1443,9 +1724,18 @@ async function ensureLocalAutocompleteRows() {
       fetchJsonFile(LOCAL_RDCK_DATA_URL),
       fetchJsonFile(LOCAL_RDKB_DATA_URL)
     ]);
-    localAutocompleteRows = buildLocalAutocompleteRows(rdckRows, rdkbPayload);
+    let derivedRows = [];
+    try {
+      const payload = await fetchJsonFile(LOCAL_DERIVED_ADDRESS_SEARCH_URL);
+      derivedRows = Array.isArray(payload) ? payload : (Array.isArray(payload && payload.rows) ? payload.rows : []);
+    } catch(e) {
+      derivedRows = [];
+    }
+    localAutocompleteRows = buildLocalAutocompleteRows(rdckRows, rdkbPayload, derivedRows);
+    localDerivedRows = derivedRows;
     if (db) {
       await idbSet(db, LOCAL_CACHE_ROWS_KEY, localAutocompleteRows);
+      await idbSet(db, LOCAL_CACHE_DERIVED_ROWS_KEY, localDerivedRows);
       await idbSet(db, LOCAL_CACHE_VERSION_KEY, manifest.exportedAt);
     }
     alog(`Local address cache built (${localAutocompleteRows.length} rows).`, 'ok');
@@ -1567,10 +1857,12 @@ function buildRDKBWhere(query='') {
 
 async function fetchRDKBAddressFeatures(query) {
   const signal = arguments[1];
+  if (!isRDKBLiveEnabled()) return [];
   const where = buildRDKBWhere(query);
   if (!where) return [];
   const url = `${RDKB_ADDRESS_TABLE}/query?where=${encodeURIComponent(where)}&outFields=OBJECTID,folio,apt_no,street_no,street_name,city,postal_code,AddressID&returnGeometry=false&f=json&resultRecordCount=60&orderByFields=street_no,street_name,apt_no,city`;
   const r = await fetch(url, signal ? {signal} : undefined);
+  if (await checkRDKBCloudflareBlock(r, url)) return [];
   const d = await r.json();
   if (d.error) throw new Error(d.error.message || 'RDKB query failed');
   return d.features || [];
@@ -1578,6 +1870,7 @@ async function fetchRDKBAddressFeatures(query) {
 
 async function fetchRDKBPropertyFeatures(opts={}) {
   const parts = [];
+  if (!isRDKBLiveEnabled()) return [];
   if (opts.folio) parts.push(`Folio='${sqlText(opts.folio)}'`);
   else {
     if (opts.streetNo) parts.push(`street_no='${sqlText(opts.streetNo)}'`);
@@ -1588,6 +1881,7 @@ async function fetchRDKBPropertyFeatures(opts={}) {
   if (!where) return [];
   const url = `${RDKB_PROPERTY}/query?where=${encodeURIComponent(where)}&outFields=FullAddress,apt_no,street_no,street_name,city,Folio,PMBC_PID,PMBC_LegalDescription,PMBC_OwnerType&returnGeometry=true&outSR=4326&f=json&resultRecordCount=40&orderByFields=FullAddress,Folio`;
   const r = await fetch(url);
+  if (await checkRDKBCloudflareBlock(r, url)) return [];
   const d = await r.json();
   if (d.error) throw new Error(d.error.message || 'RDKB property query failed');
   return d.features || [];
@@ -1746,7 +2040,7 @@ function updateResolverSourceModeUI() {
 }
 
 function chooseSearchSources(query, unitSearch) {
-  return { rdck:true, rdkb:true, geo:!!unitSearch };
+  return { rdck:true, rdkb:isRDKBLiveEnabled(), geo:!!unitSearch };
 }
 
 function mergeAutocompleteItems(rdckFeatures, rdkbFeatures, geoFeatures) {
@@ -1895,6 +2189,26 @@ function renderAutocompleteItems(items, sourceLabel='RDCK') {
           if (item.lat && item.lon) queryCadastreAtPoint(item.lat, item.lon);
         } else if (item.kind === 'rdkb') {
           setRegionBias('rdkb');
+          const isLocalRdkb = item.rawSource === 'derived' || item.rawSource === 'localCache' || !item.raw;
+          if (isLocalRdkb) {
+            selectAddress({
+              address: item.address,
+              lat: item.lat,
+              lon: item.lon,
+              comm: item.comm,
+              folio: item.folio,
+              streetNo: item.streetNo || '',
+              strName: item.strName || item.streetName || '',
+              strType: item.strType || '',
+              source: item.source,
+              extra: {
+                'Suite/Unit': item.suite || '—',
+                'PID': item.pid || '—'
+              }
+            });
+            if (item.lat && item.lon) queryCadastreAtPoint(item.lat, item.lon);
+            return;
+          }
           const info = await resolveRDKBSelection(item);
           selectAddress(info);
           showRDKBPropertyDetails(info.geometryFeatures || []);
@@ -1970,7 +2284,7 @@ async function searchAutocomplete(query) {
       autocompleteCache.set(localCacheKey, { items, label: localLabel });
       if (autocompleteCache.size > 60) autocompleteCache.delete(autocompleteCache.keys().next().value);
       renderAutocompleteItems(items, localLabel);
-      return;
+      if (items.length) return;
     }
   } catch (e) {
     if (e && e.name === 'AbortError') return;
@@ -2145,6 +2459,32 @@ function syncResolverSearchFields(info={}) {
 // ══════════════════════════════════════
 async function queryCadastreAtPoint(lat, lon) {
   try {
+    const priority = getResolverSourcePriority();
+    try {
+      await ensureLocalAutocompleteRows();
+      const local = resolveLocalCadastreFallback(lat, lon, priority);
+      if (local) {
+        const fields = [
+          ['PID', local.pid],
+          ['Folio', local.folio || '—'],
+          ['Community', local.comm || '—'],
+          ['Source', local.source || 'local'],
+          ['Address', local.address || '—'],
+          ['Unit', local.suite || '—'],
+          ['Latitude', Number.isFinite(local.lat) ? local.lat.toFixed(7) : '—'],
+          ['Longitude', Number.isFinite(local.lon) ? local.lon.toFixed(7) : '—']
+        ];
+        updateParcelCard('Cadastre Info (local cache)', fields);
+        if (Number.isFinite(local.lat) && Number.isFinite(local.lon)) {
+          const mk = L.marker([local.lat, local.lon], { icon: PIN_A }).addTo(map);
+          mapMarkers.push(mk);
+          map.setView([local.lat, local.lon], Math.max(map.getZoom(), 18), {animate:false});
+        }
+        alog(`Cadastre resolved from local index for ${local.pid || local.folio || local.address || 'address'}`, 'ok');
+        return;
+      }
+    } catch (e) {}
+
     const url = `${RDCK_CAD}/query?geometry=${lon},${lat}&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects&outFields=PID,Site_Address,Folio,Actual_Use,City,Lot_Size,Gen_Land_Gross,Gen_Impr_Gross,Legal_Long,Plan_Number&returnGeometry=true&outSR=4326&f=json`;
     const r = await fetch(url); const d = await r.json();
     if (!d.features || !d.features.length) { alog('No cadastre at point','warn'); return; }
@@ -2205,24 +2545,86 @@ async function queryExplorerInfoAtPoint(lat, lng) {
   const sections = [];
   let polygonGeo = null;
   let polygonStyle = {color:'#FF6200',weight:3,fillColor:'#FF6200',fillOpacity:.15};
+  const priority = getResolverSourcePriority();
+  const remotePriority = getRemoteResolverPriority();
+  const prioritySources = priority.reduce((acc, region) => {
+    if (region) acc[region] = true;
+    return acc;
+  }, {});
+  let localRdckAdded = false;
+  let localRdkbAdded = false;
+  let localCadastreAdded = false;
 
   try {
-    const url = `${RDCK_ADDR}/query?geometry=${lng},${lat}&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects&distance=25&units=esriSRUnit_Meter&outFields=ADDRESS,SUITE,FOLIO,COMM&returnGeometry=false&outSR=4326&f=json`;
-    const r = await fetch(url); const d = await r.json();
-    if (d.features && d.features.length) {
-      const a = d.features[0].attributes || {};
-      sections.push(renderInfoSection('RDCK Address Point', [
-        ['Address', a.SUITE ? `${a.SUITE}-${a.ADDRESS}` : a.ADDRESS],
-        ['Suite/Unit', a.SUITE],
-        ['Folio', a.FOLIO],
-        ['Community', a.COMM]
+    await ensureLocalAutocompleteRows();
+    const localRows = getLocalAddressRowsAtPoint(lat, lng, {
+      sources: prioritySources,
+      maxDistanceMeters: LOCAL_POINT_MATCH_MAX_METERS * 2,
+      maxResults: 4
+    });
+    const localRdck = localRows.find(r => r.kind === 'rdck');
+    const localRdkb = localRows.find(r => r.kind === 'rdkb');
+    if (localRdck) {
+      localRdckAdded = true;
+      sections.push(renderInfoSection('RDCK Address Point (local)', [
+        ['Address', localRdck.address],
+        ['Suite/Unit', localRdck.suite || '—'],
+        ['Folio', localRdck.folio || '—'],
+        ['Community', localRdck.comm || '—'],
+        ['Source', localRdck.source || 'RDCK'],
+        ['Distance', localRdck._distanceMeters ? `${localRdck._distanceMeters.toFixed(0)}m` : '—']
+      ]));
+    }
+    if (localRdkb) {
+      localRdkbAdded = true;
+      sections.push(renderInfoSection('RDKB Property Search (local)', [
+        ['Full Address', localRdkb.address],
+        ['Apartment Number', localRdkb.suite || '—'],
+        ['Street Number', localRdkb.streetNo || '—'],
+        ['Street Name', localRdkb.strName || localRdkb.streetName || '—'],
+        ['City', localRdkb.comm || '—'],
+        ['Folio', localRdkb.folio || '—'],
+        ['PID', localRdkb.pid || '—'],
+        ['Source', localRdkb.source || 'RDKB'],
+        ['Distance', localRdkb._distanceMeters ? `${localRdkb._distanceMeters.toFixed(0)}m` : '—']
+      ]));
+    }
+    const localCadastre = resolveLocalCadastreFallback(lat, lng, priority);
+    if (localCadastre) {
+      localCadastreAdded = true;
+      sections.push(renderInfoSection('Cadastre Info (local cache)', [
+        ['PID', localCadastre.pid || '—'],
+        ['Folio', localCadastre.folio || '—'],
+        ['Community', localCadastre.comm || '—'],
+        ['Address', localCadastre.address || '—'],
+        ['Unit', localCadastre.suite || '—'],
+        ['Source', localCadastre.source || 'local']
       ]));
     }
   } catch (e) {
-    alog('RDCK address query failed: ' + e.message, 'err');
+    alog('Local explorer query failed: ' + e.message, 'warn');
   }
 
-  try {
+  if (!localRdckAdded && prioritySources.rdck) {
+    try {
+      const url = `${RDCK_ADDR}/query?geometry=${lng},${lat}&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects&distance=25&units=esriSRUnit_Meter&outFields=ADDRESS,SUITE,FOLIO,COMM&returnGeometry=false&outSR=4326&f=json`;
+      const r = await fetch(url); const d = await r.json();
+      if (d.features && d.features.length) {
+        const a = d.features[0].attributes || {};
+        sections.push(renderInfoSection('RDCK Address Point', [
+          ['Address', a.SUITE ? `${a.SUITE}-${a.ADDRESS}` : a.ADDRESS],
+          ['Suite/Unit', a.SUITE],
+          ['Folio', a.FOLIO],
+          ['Community', a.COMM]
+        ]));
+      }
+    } catch (e) {
+      alog('RDCK address query failed: ' + e.message, 'err');
+    }
+  }
+
+  if (!localCadastreAdded && prioritySources.rdck) {
+    try {
     const url = `${RDCK_CAD}/query?geometry=${lng},${lat}&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects&outFields=PID,Site_Address,Folio,Actual_Use,City,Lot_Size&returnGeometry=true&outSR=4326&f=json`;
     const r = await fetch(url); const d = await r.json();
     if (d.features && d.features.length) {
@@ -2243,30 +2645,36 @@ async function queryExplorerInfoAtPoint(lat, lng) {
   } catch (e) {
     alog('RDCK cadastre query failed: ' + e.message, 'err');
   }
+  }
 
-  try {
-    const url = `${RDKB_PROPERTY}/query?geometry=${lng},${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=FullAddress,apt_no,street_no,street_name,city,Folio,PMBC_PID,PMBC_LegalDescription,PMBC_OwnerType&returnGeometry=true&outSR=4326&f=json`;
-    const r = await fetch(url); const d = await r.json();
-    if (d.features && d.features.length) {
-      const f = d.features[0];
-      const p = f.attributes || {};
-      sections.push(renderInfoSection('RDKB Property Search', [
-        ['Full Address', p.FullAddress],
-        ['Apartment Number', p.apt_no],
-        ['Street Number', p.street_no],
-        ['Street Name', p.street_name],
-        ['City', p.city],
-        ['Folio', p.Folio],
-        ['PID', p.PMBC_PID],
-        ['Owner Type', p.PMBC_OwnerType]
-      ]));
-      if (!polygonGeo && f.geometry && f.geometry.rings) {
-        polygonGeo = { type: 'Polygon', coordinates: [f.geometry.rings[0]] };
-        polygonStyle = {color:'#00805A',weight:3,fillColor:'#00805A',fillOpacity:.12};
+  if (!localRdkbAdded && remotePriority.includes('rdkb')) {
+    try {
+      const url = `${RDKB_PROPERTY}/query?geometry=${lng},${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=FullAddress,apt_no,street_no,street_name,city,Folio,PMBC_PID,PMBC_LegalDescription,PMBC_OwnerType&returnGeometry=true&outSR=4326&f=json`;
+      const r = await fetch(url);
+      if (!(await checkRDKBCloudflareBlock(r, url))) {
+        const d = await r.json();
+        if (d.features && d.features.length) {
+          const f = d.features[0];
+          const p = f.attributes || {};
+          sections.push(renderInfoSection('RDKB Property Search', [
+            ['Full Address', p.FullAddress],
+            ['Apartment Number', p.apt_no],
+            ['Street Number', p.street_no],
+            ['Street Name', p.street_name],
+            ['City', p.city],
+            ['Folio', p.Folio],
+            ['PID', p.PMBC_PID],
+            ['Owner Type', p.PMBC_OwnerType]
+          ]));
+          if (!polygonGeo && f.geometry && f.geometry.rings) {
+            polygonGeo = { type: 'Polygon', coordinates: [f.geometry.rings[0]] };
+            polygonStyle = {color:'#00805A',weight:3,fillColor:'#00805A',fillOpacity:.12};
+          }
+        }
       }
+    } catch (e) {
+      alog('RDKB property query failed: ' + e.message, 'err');
     }
-  } catch (e) {
-    alog('RDKB property query failed: ' + e.message, 'err');
   }
 
   try {
