@@ -179,6 +179,13 @@
       </div>
       <button class="btn-o" id="acSearchBtn">SEARCH ADDRESSES</button>
       <button class="btn-s" id="acBcGeoBtn">FALLBACK: BC GEOCODER</button>
+      <div class="fld" style="margin-top:10px">
+        <label>Reverse Coordinate Lookup</label>
+        <div class="fld-row">
+          <input type="text" id="coordLookupInput" placeholder="49.0968685, -117.7083066">
+          <button class="btn-s" id="coordLookupBtn" style="width:96px">LOOKUP</button>
+        </div>
+      </div>
     </div>
 
     <div class="psec">
@@ -321,7 +328,7 @@
   <div class="ctx-sep"></div>
   <div class="ctx-item orange" id="ctxLookupAddr"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>Lookup Address Here</div>
   <div class="ctx-item" id="ctxQueryParcel"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>Query Parcel (WFS)</div>
-  <div class="ctx-item" id="ctxReverseGeo"><svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0013 3.06V1h-2v2.06A8.994 8.994 0 003.06 11H1v2h2.06A8.994 8.994 0 0011 20.94V23h2v-2.06A8.994 8.994 0 0020.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>Reverse Geocode (BC)</div>
+  <div class="ctx-item" id="ctxReverseGeo"><svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0013 3.06V1h-2v2.06A8.994 8.994 0 003.06 11H1v2h2.06A8.994 8.994 0 0011 20.94V23h2v-2.06A8.994 8.994 0 0020.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>Reverse Coordinate Lookup</div>
   <div class="ctx-item" id="ctxStreetView"><svg viewBox="0 0 24 24"><path d="M12 2a4 4 0 1 0 4 4 4 4 0 0 0-4-4zm0 8c-3.87 0-7 1.79-7 4v3h2v5h2v-5h6v5h2v-5h2v-3c0-2.21-3.13-4-7-4z"/></svg>Open Street View Here</div>
   <div class="ctx-sep"></div>
   <div class="ctx-item" id="ctxCenterHere"><svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0013 3.06V1h-2v2.06A8.994 8.994 0 003.06 11H1v2h2.06A8.994 8.994 0 0011 20.94V23h2v-2.06A8.994 8.994 0 0020.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>Center Map Here</div>
@@ -1215,28 +1222,106 @@ document.getElementById('ctxQueryParcel').addEventListener('click', async () => 
   await queryParcelAtPoint(ctxLL.lat, ctxLL.lng);
 });
 
-// Reverse geocode (BC Geocoder)
+function parseCoordinatePair(value='') {
+  const nums = String(value || '').match(/-?\d+(?:\.\d+)?/g);
+  if (!nums || nums.length < 2) return null;
+  let a = Number(nums[0]);
+  let b = Number(nums[1]);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  let lat = a;
+  let lon = b;
+  if (Math.abs(a) > 90 && Math.abs(b) <= 90) {
+    lat = b;
+    lon = a;
+  }
+  if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+  return { lat, lon };
+}
+
+async function reverseCoordinateLookup(lat, lon, opts={}) {
+  const label = opts.label || 'Reverse coordinate lookup';
+  const lookupText = `${lat.toFixed(7)}, ${lon.toFixed(7)}`;
+  try {
+    await ensureLocalAutocompleteRows();
+    const localRows = getLocalAddressRowsAtPoint(lat, lon, {
+      sources: { rdck: true, rdkb: true },
+      maxDistanceMeters: opts.maxDistanceMeters || Math.max(LOCAL_POINT_MATCH_MAX_METERS, 1200),
+      maxResults: 6
+    });
+    if (localRows.length) {
+      const nearest = localRows[0];
+      const localKind = nearest.kind === 'rdkb' ? 'rdkb' : 'rdck';
+      setRegionBias(localKind);
+      selectAddress({
+        address: nearest.address,
+        lat: nearest.lat,
+        lon: nearest.lon,
+        comm: nearest.comm,
+        folio: nearest.folio,
+        streetNo: nearest.streetNo || '',
+        strName: nearest.strName || nearest.streetName || '',
+        strType: nearest.strType || '',
+        source: nearest.source || (nearest.kind === 'rdkb' ? 'RDKB Address Search (local)' : 'RDCK Address Cache'),
+        extra: {
+          'Suite/Unit': nearest.suite || '—',
+          'PID': nearest.pid || '—',
+          'Distance': Number.isFinite(nearest._distanceMeters) ? `${nearest._distanceMeters.toFixed(0)}m` : '—',
+          'Lookup Point': lookupText,
+          'Coord Source': nearest.coordSource || 'local'
+        }
+      });
+      if (Number.isFinite(nearest.lat) && Number.isFinite(nearest.lon)) {
+        await queryCadastreAtPoint(nearest.lat, nearest.lon);
+      }
+      alog(`${label}: local ${nearest.kind.toUpperCase()} match ${nearest.address} (${Number.isFinite(nearest._distanceMeters) ? nearest._distanceMeters.toFixed(0) : '?'}m)`, 'ok');
+      return true;
+    }
+  } catch (e) {
+    alog(`${label}: local lookup failed: ${e.message}`, 'warn');
+  }
+
+  const url = `${BC_GEO}/sites/nearest.json?point=${lon},${lat}&outputSRS=4326`;
+  const r = await fetch(url);
+  const d = await r.json();
+  if (d.properties) {
+    const p = d.properties;
+    selectAddress({
+      address: p.fullAddress || '—',
+      lat, lon,
+      comm: p.localityName || '—',
+      folio: '—',
+      source: 'BC Geocoder (reverse)',
+      extra: { 'Site ID': p.siteID||'—', 'Score': (p.score||'?')+'%', 'Precision': p.precisionPoints||p.matchPrecision||'—', 'Lookup Point': lookupText }
+    });
+    alog(`${label}: BC Geocoder ${p.fullAddress || '—'}`, 'ok');
+    return true;
+  }
+  toast('No coordinate lookup result');
+  return false;
+}
+
+// Reverse coordinate lookup (local cache first, BC Geocoder fallback)
 document.getElementById('ctxReverseGeo').addEventListener('click', async () => {
   if (!ctxLL) return;
   ctxMenu.classList.remove('vis');
   showLov('mapLov');
   try {
-    const url = `${BC_GEO}/sites/nearest.json?point=${ctxLL.lng},${ctxLL.lat}&outputSRS=4326`;
-    const r = await fetch(url); const d = await r.json();
-    if (d.properties) {
-      const p = d.properties;
-      selectAddress({
-        address: p.fullAddress || '—',
-        lat: ctxLL.lat, lon: ctxLL.lng,
-        comm: p.localityName || '—',
-        folio: '—',
-        source: 'BC Geocoder (reverse)',
-        extra: { 'Site ID': p.siteID||'—', 'Score': (p.score||'?')+'%', 'Precision': p.precisionPoints||p.matchPrecision||'—' }
-      });
-      alog(`Reverse geocode: ${p.fullAddress}`, 'ok');
-    } else { toast('No result from reverse geocode'); }
-  } catch(e) { alog('Reverse geocode failed: '+e.message, 'err'); }
+    await reverseCoordinateLookup(ctxLL.lat, ctxLL.lng, { label: 'Map reverse lookup' });
+  } catch(e) { alog('Reverse coordinate lookup failed: '+e.message, 'err'); }
   finally { hideLov('mapLov'); }
+});
+
+document.getElementById('coordLookupBtn').addEventListener('click', async () => {
+  const parsed = parseCoordinatePair(document.getElementById('coordLookupInput').value);
+  if (!parsed) { toast('Enter coordinates as lat, lon'); return; }
+  showLov('mapLov');
+  try {
+    await reverseCoordinateLookup(parsed.lat, parsed.lon, { label: 'Coordinate lookup' });
+  } catch(e) { alog('Coordinate lookup failed: '+e.message, 'err'); }
+  finally { hideLov('mapLov'); }
+});
+document.getElementById('coordLookupInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('coordLookupBtn').click();
 });
 
 document.getElementById('ctxStreetView').addEventListener('click', () => {
