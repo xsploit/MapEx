@@ -351,9 +351,9 @@ const LOCAL_AUTOCOMPLETE_MANIFEST_URL = 'data/address-export-manifest.json';
 const LOCAL_RDCK_DATA_URL = 'data/rdck-addresses.json';
 const LOCAL_RDKB_DATA_URL = 'data/rdkb-addresses.json';
 const LOCAL_DERIVED_ADDRESS_SEARCH_URL = 'data/derived/address-search.json';
-const LOCAL_CACHE_DB_NAME = 'mapex-local-cache';
+const LOCAL_CACHE_DB_NAME = 'mapex-local-cache-derived-v3';
 const LOCAL_CACHE_DB_VERSION = 2;
-const LOCAL_CACHE_SCHEMA_VERSION = 'autocomplete-derived-v2';
+const LOCAL_CACHE_SCHEMA_VERSION = 'autocomplete-derived-v3';
 const LOCAL_CACHE_STORE = 'kv';
 const LOCAL_CACHE_VERSION_KEY = 'autocompleteVersion';
 const LOCAL_CACHE_ROWS_KEY = 'autocompleteRows';
@@ -1719,7 +1719,7 @@ async function ensureLocalAutocompleteRows() {
     const cachedVersion = db ? await idbGet(db, LOCAL_CACHE_VERSION_KEY) : null;
     const cachedRows = db ? await idbGet(db, LOCAL_CACHE_ROWS_KEY) : null;
     const cachedDerivedRows = db ? await idbGet(db, LOCAL_CACHE_DERIVED_ROWS_KEY) : null;
-    if (cachedVersion === localCacheVersion && Array.isArray(cachedRows) && cachedRows.length && Array.isArray(cachedDerivedRows)) {
+    if (cachedVersion === localCacheVersion && Array.isArray(cachedRows) && cachedRows.length && Array.isArray(cachedDerivedRows) && cachedDerivedRows.length) {
       localAutocompleteRows = cachedRows;
       localDerivedRows = cachedDerivedRows;
       alog(`Local address cache ready from IndexedDB (${localAutocompleteRows.length} rows).`, 'ok');
