@@ -352,7 +352,8 @@ const LOCAL_RDCK_DATA_URL = 'data/rdck-addresses.json';
 const LOCAL_RDKB_DATA_URL = 'data/rdkb-addresses.json';
 const LOCAL_DERIVED_ADDRESS_SEARCH_URL = 'data/derived/address-search.json';
 const LOCAL_CACHE_DB_NAME = 'mapex-local-cache';
-const LOCAL_CACHE_DB_VERSION = 1;
+const LOCAL_CACHE_DB_VERSION = 2;
+const LOCAL_CACHE_SCHEMA_VERSION = 'autocomplete-derived-v2';
 const LOCAL_CACHE_STORE = 'kv';
 const LOCAL_CACHE_VERSION_KEY = 'autocompleteVersion';
 const LOCAL_CACHE_ROWS_KEY = 'autocompleteRows';
@@ -1709,13 +1710,14 @@ async function ensureLocalAutocompleteRows() {
   localAutocompleteLoadPromise = (async () => {
     alog('Loading local address cache...', 'info');
     const manifest = await fetchJsonFile(LOCAL_AUTOCOMPLETE_MANIFEST_URL);
+    const localCacheVersion = `${manifest.exportedAt}|${LOCAL_CACHE_SCHEMA_VERSION}`;
     const db = await openLocalCacheDb().catch(() => null);
     const cachedVersion = db ? await idbGet(db, LOCAL_CACHE_VERSION_KEY) : null;
     const cachedRows = db ? await idbGet(db, LOCAL_CACHE_ROWS_KEY) : null;
     const cachedDerivedRows = db ? await idbGet(db, LOCAL_CACHE_DERIVED_ROWS_KEY) : null;
-    if (cachedVersion === manifest.exportedAt && Array.isArray(cachedRows) && cachedRows.length) {
+    if (cachedVersion === localCacheVersion && Array.isArray(cachedRows) && cachedRows.length && Array.isArray(cachedDerivedRows)) {
       localAutocompleteRows = cachedRows;
-      localDerivedRows = Array.isArray(cachedDerivedRows) ? cachedDerivedRows : [];
+      localDerivedRows = cachedDerivedRows;
       alog(`Local address cache ready from IndexedDB (${localAutocompleteRows.length} rows).`, 'ok');
       return localAutocompleteRows;
     }
@@ -1736,7 +1738,7 @@ async function ensureLocalAutocompleteRows() {
     if (db) {
       await idbSet(db, LOCAL_CACHE_ROWS_KEY, localAutocompleteRows);
       await idbSet(db, LOCAL_CACHE_DERIVED_ROWS_KEY, localDerivedRows);
-      await idbSet(db, LOCAL_CACHE_VERSION_KEY, manifest.exportedAt);
+      await idbSet(db, LOCAL_CACHE_VERSION_KEY, localCacheVersion);
     }
     alog(`Local address cache built (${localAutocompleteRows.length} rows).`, 'ok');
     return localAutocompleteRows;
@@ -1861,7 +1863,14 @@ async function fetchRDKBAddressFeatures(query) {
   const where = buildRDKBWhere(query);
   if (!where) return [];
   const url = `${RDKB_ADDRESS_TABLE}/query?where=${encodeURIComponent(where)}&outFields=OBJECTID,folio,apt_no,street_no,street_name,city,postal_code,AddressID&returnGeometry=false&f=json&resultRecordCount=60&orderByFields=street_no,street_name,apt_no,city`;
-  const r = await fetch(url, signal ? {signal} : undefined);
+  let r;
+  try {
+    r = await fetch(url, signal ? {signal} : undefined);
+  } catch (e) {
+    if (e && e.name === 'AbortError') throw e;
+    disableRDKBLive('CORS/network failure');
+    return [];
+  }
   if (await checkRDKBCloudflareBlock(r, url)) return [];
   const d = await r.json();
   if (d.error) throw new Error(d.error.message || 'RDKB query failed');
@@ -1880,7 +1889,14 @@ async function fetchRDKBPropertyFeatures(opts={}) {
   const where = parts.join(' AND ');
   if (!where) return [];
   const url = `${RDKB_PROPERTY}/query?where=${encodeURIComponent(where)}&outFields=FullAddress,apt_no,street_no,street_name,city,Folio,PMBC_PID,PMBC_LegalDescription,PMBC_OwnerType&returnGeometry=true&outSR=4326&f=json&resultRecordCount=40&orderByFields=FullAddress,Folio`;
-  const r = await fetch(url);
+  let r;
+  try {
+    r = await fetch(url);
+  } catch (e) {
+    if (e && e.name === 'AbortError') throw e;
+    disableRDKBLive('CORS/network failure');
+    return [];
+  }
   if (await checkRDKBCloudflareBlock(r, url)) return [];
   const d = await r.json();
   if (d.error) throw new Error(d.error.message || 'RDKB property query failed');
@@ -2039,10 +2055,18 @@ function updateResolverSourceModeUI() {
   hint.textContent = 'Auto mode is off, but no region is locked yet. The next successful RDCK or RDKB result will set the lock.';
 }
 
-function chooseSearchSources(query, unitSearch) {
+function shouldUseBCGeocoder(query, unitSearch) {
   const q = String(query || '').trim();
   const hasLetters = /[a-z]/i.test(q);
-  return { rdck:true, rdkb:isRDKBLiveEnabled(), geo: Boolean(unitSearch) || (hasLetters && !/^\d+$/.test(q)) };
+  return Boolean(unitSearch) || (hasLetters && !/^\d+$/.test(q));
+}
+
+function chooseLocalSearchSources(query, unitSearch) {
+  return { rdck:true, rdkb:true, geo:false };
+}
+
+function chooseSearchSources(query, unitSearch) {
+  return { rdck:true, rdkb:isRDKBLiveEnabled(), geo: shouldUseBCGeocoder(query, unitSearch) };
 }
 
 function mergeAutocompleteItems(rdckFeatures, rdkbFeatures, geoFeatures) {
@@ -2250,7 +2274,11 @@ function renderAutocompleteItems(items, sourceLabel='RDCK') {
           try {
             const info = await resolveRDKBSelection(item);
             selectAddress(info);
-            showRDKBPropertyDetails(info.geometryFeatures || []);
+            if (info.geometryFeatures && info.geometryFeatures.length) {
+              showRDKBPropertyDetails(info.geometryFeatures);
+            } else if (Number.isFinite(info.lat) && Number.isFinite(info.lon)) {
+              queryCadastreAtPoint(info.lat, info.lon);
+            }
           } catch (err) {
             alog(`RDKB property lookup failed: ${err.message}`, 'warn');
             if (hasPoint) {
@@ -2344,7 +2372,7 @@ async function searchAutocomplete(query) {
   const q = String(query || '').trim();
   if (!q) return;
   const unitSearch = parseUnitSearch(q);
-  const localSources = chooseSearchSources(q, null);
+  const localSources = chooseLocalSearchSources(q, unitSearch);
   const localLabel = [localSources.rdck && 'RDCK Cache', localSources.rdkb && 'RDKB Cache'].filter(Boolean).join(' + ') || 'Local Cache';
   const localCacheKey = buildAutocompleteCacheKey('local', q, localSources);
   if (autocompleteCache.has(localCacheKey)) {
