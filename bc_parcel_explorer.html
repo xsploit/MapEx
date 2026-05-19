@@ -2192,7 +2192,8 @@ function renderAutocompleteItems(items, sourceLabel='RDCK') {
         } else if (item.kind === 'rdkb') {
           setRegionBias('rdkb');
           const isLocalRdkb = item.rawSource === 'derived' || item.rawSource === 'localCache' || !item.raw;
-          if (isLocalRdkb) {
+          const hasPoint = Number.isFinite(item.lat) && Number.isFinite(item.lon);
+          if (isLocalRdkb && hasPoint) {
             selectAddress({
               address: item.address,
               lat: item.lat,
@@ -2211,9 +2212,55 @@ function renderAutocompleteItems(items, sourceLabel='RDCK') {
             if (item.lat && item.lon) queryCadastreAtPoint(item.lat, item.lon);
             return;
           }
-          const info = await resolveRDKBSelection(item);
-          selectAddress(info);
-          showRDKBPropertyDetails(info.geometryFeatures || []);
+          try {
+            const info = await resolveRDKBSelection(item);
+            selectAddress(info);
+            showRDKBPropertyDetails(info.geometryFeatures || []);
+          } catch (err) {
+            alog(`RDKB property lookup failed: ${err.message}`, 'warn');
+            if (hasPoint) {
+              selectAddress({
+                address: item.address,
+                lat: item.lat,
+                lon: item.lon,
+                comm: item.comm,
+                folio: item.folio,
+                streetNo: item.streetNo || '',
+                strName: item.strName || item.streetName || '',
+                strType: item.strType || '',
+                source: item.source,
+                extra: {
+                  'Suite/Unit': item.suite || '—',
+                  'PID': item.pid || '—',
+                  'Note': 'RDKB property lookup unavailable'
+                }
+              });
+              if (item.lat && item.lon) queryCadastreAtPoint(item.lat, item.lon);
+              return;
+            }
+            if (item.rawSource === 'localCache' || item.rawSource === 'derived') {
+              const bcGeo = (await fetchBCGeocoderFeatures(item.address, 1))[0];
+              if (bcGeo && bcGeo.geometry && bcGeo.geometry.coordinates && bcGeo.geometry.coordinates.length >= 2) {
+                const bcLat = bcGeo.geometry.coordinates[1];
+                const bcLon = bcGeo.geometry.coordinates[0];
+                selectAddress({
+                  address: item.address,
+                  lat: bcLat,
+                  lon: bcLon,
+                  comm: item.comm,
+                  folio: item.folio,
+                  source: item.source,
+                  extra: {
+                    'Suite/Unit': item.suite || '—',
+                    'PID': item.pid || '—'
+                  }
+                });
+                queryCadastreAtPoint(bcLat, bcLon);
+                return;
+              }
+            }
+            throw err;
+          }
         } else {
           const p = item.raw.properties || {};
           selectAddress({
