@@ -361,7 +361,8 @@ const LOCAL_CACHE_DERIVED_ROWS_KEY = 'addressSearchRows';
 const LOCAL_AUTOCOMPLETE_LIMIT = 20;
 const LOCAL_POINT_MATCH_MAX_METERS = 500;
 const LOCAL_POINT_MATCH_MAX_RESULTS = 8;
-let rdkbRemoteBlocked = false;
+const RDKB_LIVE_ENABLED = false;
+let rdkbRemoteBlocked = !RDKB_LIVE_ENABLED;
 
 // ══════════════════════════════════════
 // LOGGING
@@ -394,7 +395,7 @@ window.fetch = async function(url, opts) {
 };
 
 function isRDKBLiveEnabled() {
-  return !rdkbRemoteBlocked;
+  return RDKB_LIVE_ENABLED && !rdkbRemoteBlocked;
 }
 
 function disableRDKBLive(reason='') {
@@ -487,7 +488,7 @@ const mainParcelsWMS = L.tileLayer.wms(BC_WFS, {
 let mainRDCK = null, mainRDKBProperty = null, mainRDKBParcels = null, mainRDKBAddressPoints = null, mainRDCKLayerGroup = null;
 const mainLayerControllers = new Map();
 try { mainRDCK = L.esri.dynamicMapLayer({url:RDCK_BASE, opacity:1}); } catch(e) {}
-try { mainRDKBProperty = L.esri.dynamicMapLayer({url:RDKB_PROPERTY_ROOT, opacity:.45}); } catch(e) {}
+try { if (isRDKBLiveEnabled()) mainRDKBProperty = L.esri.dynamicMapLayer({url:RDKB_PROPERTY_ROOT, opacity:.45}); } catch(e) {}
 let mainRDCKHitTargets = null;
 let rdckIgnoreMapClickUntil = 0;
 
@@ -599,6 +600,7 @@ function ensureMainRDCKLayer() {
 }
 
 function ensureMainRDKBParcels() {
+  if (!isRDKBLiveEnabled()) return null;
   if (mainRDKBParcels) return mainRDKBParcels;
   try {
     mainRDKBParcels = L.esri.featureLayer({
@@ -610,6 +612,7 @@ function ensureMainRDKBParcels() {
 }
 
 function ensureMainRDKBAddressPoints() {
+  if (!isRDKBLiveEnabled()) return null;
   if (mainRDKBAddressPoints) return mainRDKBAddressPoints;
   try {
     mainRDKBAddressPoints = L.esri.featureLayer({
@@ -1146,6 +1149,7 @@ document.getElementById('ctxLookupAddr').addEventListener('click', async () => {
         continue;
       }
 
+      if (!isRDKBLiveEnabled()) continue;
       const rdkbUrl = `${RDKB_PROPERTY}/query?geometry=${ctxLL.lng},${ctxLL.lat}&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects&outFields=FullAddress,apt_no,street_no,street_name,city,Folio,PMBC_PID,PMBC_LegalDescription,PMBC_OwnerType&returnGeometry=true&outSR=4326&f=json`;
       const rdkbResp = await fetch(rdkbUrl);
       if (await checkRDKBCloudflareBlock(rdkbResp, rdkbUrl)) continue;
@@ -2829,12 +2833,14 @@ function initExpMap() {
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:19}).addTo(expMap);
   expParcelsWMS = L.tileLayer.wms(BC_WFS,{layers:'pub:WHSE_CADASTRE.PMBC_PARCEL_FABRIC_POLY_SVW',format:'image/png',transparent:true,opacity:.5,maxZoom:19});
   try { expRDCK = L.esri.dynamicMapLayer({url:RDCK_BASE,opacity:1}); } catch(e){}
-  try { expRDKBProperty = L.esri.dynamicMapLayer({url:RDKB_PROPERTY_ROOT,opacity:.45}); } catch(e){}
+  try { if (isRDKBLiveEnabled()) expRDKBProperty = L.esri.dynamicMapLayer({url:RDKB_PROPERTY_ROOT,opacity:.45}); } catch(e){}
   try {
-    expRDKBParcels = L.esri.featureLayer({
-      url:RDKB_PARCELS,
-      style: () => ({color:'#0066CC', weight:1.5, fillOpacity:0})
-    });
+    if (isRDKBLiveEnabled()) {
+      expRDKBParcels = L.esri.featureLayer({
+        url:RDKB_PARCELS,
+        style: () => ({color:'#0066CC', weight:1.5, fillOpacity:0})
+      });
+    }
   } catch(e){}
 
   document.getElementById('lSat').addEventListener('change',e=>{e.target.checked?expSat.addTo(expMap):expMap.removeLayer(expSat)});
