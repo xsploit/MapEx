@@ -2040,7 +2040,9 @@ function updateResolverSourceModeUI() {
 }
 
 function chooseSearchSources(query, unitSearch) {
-  return { rdck:true, rdkb:isRDKBLiveEnabled(), geo:!!unitSearch };
+  const q = String(query || '').trim();
+  const hasLetters = /[a-z]/i.test(q);
+  return { rdck:true, rdkb:isRDKBLiveEnabled(), geo: Boolean(unitSearch) || (hasLetters && !/^\d+$/.test(q)) };
 }
 
 function mergeAutocompleteItems(rdckFeatures, rdkbFeatures, geoFeatures) {
@@ -2245,15 +2247,13 @@ async function searchAutocompleteRemote(query, unitSearch, sources, signal) {
   const q = String(query || '').trim();
   if (!q) return { items: [], label: 'Live Search' };
   const rdckQuery = unitSearch ? unitSearch.baseQuery : q;
-  const label = unitSearch
-    ? [sources.rdck && 'RDCK Live', sources.rdkb && 'RDKB Live', sources.geo && 'BC Geocoder'].filter(Boolean).join(' + ')
-    : [sources.rdck && 'RDCK Live', sources.rdkb && 'RDKB Live'].filter(Boolean).join(' + ');
+  const label = [sources.rdck && 'RDCK Live', sources.rdkb && 'RDKB Live', sources.geo && 'BC Geocoder'].filter(Boolean).join(' + ');
   const [rdckFeatures, rdkbFeatures, rawGeoFeatures] = await Promise.all([
     sources.rdck ? fetchRDCKAddressFeatures(rdckQuery, false, signal) : Promise.resolve([]),
     sources.rdkb ? fetchRDKBAddressFeatures(q, signal) : Promise.resolve([]),
     sources.geo ? fetchBCGeocoderFeatures(q, 10, signal) : Promise.resolve([])
   ]);
-  const geoFeatures = unitSearch ? filterGeoUnitMatches(rawGeoFeatures, rdckFeatures) : [];
+  const geoFeatures = unitSearch ? filterGeoUnitMatches(rawGeoFeatures, rdckFeatures) : rawGeoFeatures;
   const items = mergeAutocompleteItems(rdckFeatures, rdkbFeatures, geoFeatures);
   return { items, label };
 }
