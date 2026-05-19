@@ -2090,7 +2090,39 @@ function estimateFeatureCenter(features=[]) {
 }
 
 async function resolveRDKBSelection(item) {
+  const localMatch = localDerivedRows && localDerivedRows.find(r => {
+    const sameFolio = item.folio && r.folio && String(r.folio) === String(item.folio);
+    const sameSuite = item.suite && r.unit && String(r.unit) === String(item.suite);
+    const sameAddress = normalizeAcText(r.fullAddress || r.streetNo || '').trim()
+      && normalizeAcText(r.fullAddress || `${r.streetNo || ''} ${r.streetName || ''}`) === normalizeAcText(item.rawAddress || item.address || '');
+    const sameCity = normalizeAcText(r.locality || r.city || '') === normalizeAcText(item.comm || '');
+    return sameFolio || (sameAddress && sameCity && (!item.suite || sameSuite));
+  }) || null;
+  if (localMatch && Number.isFinite(localMatch.lat) && Number.isFinite(localMatch.lon)) {
+    return {
+      address: item.address,
+      lat: localMatch.lat,
+      lon: localMatch.lon,
+      comm: item.comm || localMatch.locality || localMatch.city || '',
+      folio: item.folio || localMatch.folio || '—',
+      streetNo: item.streetNo || localMatch.streetNo || '',
+      streetName: item.streetName || localMatch.streetName || '',
+      source: `RDKB ${localMatch.coordSource || 'Address Search'} (local cache)`,
+      extra: {
+        'Suite/Unit': item.suite || localMatch.unit || '—',
+        'PID': localMatch.pid || '—',
+        'Property Matches': localMatch.coordSource ? 1 : 0
+      },
+      geometryFeatures: [],
+      polygonStyle: {color:'#00805A', weight:2.5, fillColor:'#00805A', fillOpacity:.08},
+      markerIcon: PIN_B
+    };
+  }
+
   const attrs = item.raw && item.raw.attributes ? item.raw.attributes : {};
+  if (!isRDKBLiveEnabled()) {
+    throw new Error('RDKB live lookup blocked by Cloudflare');
+  }
   const propertyFeatures = await fetchRDKBPropertyFeatures({
     folio: item.folio || attrs.folio,
     streetNo: item.streetNo || attrs.street_no,
@@ -2098,6 +2130,9 @@ async function resolveRDKBSelection(item) {
     city: item.comm || attrs.city
   });
   const center = estimateFeatureCenter(propertyFeatures);
+  if (!Number.isFinite(center.lat) || !Number.isFinite(center.lon)) {
+    throw new Error('No property geometry returned from RDKB lookup');
+  }
   return {
     address: item.address,
     lat: center.lat,
