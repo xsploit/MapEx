@@ -368,7 +368,12 @@ const LOCAL_CACHE_DERIVED_ROWS_KEY = 'addressSearchRows';
 const LOCAL_AUTOCOMPLETE_LIMIT = 20;
 const LOCAL_POINT_MATCH_MAX_METERS = 500;
 const LOCAL_POINT_MATCH_MAX_RESULTS = 8;
+const LOCAL_LAYER_ROOT = 'data/layers';
+const MAP_DEFAULT_ZOOM = 14;
+const MAP_MAX_ZOOM = 22;
+const TILE_NATIVE_MAX_ZOOM = 19;
 const RDKB_LIVE_ENABLED = false;
+const RDKB_MAP_LAYERS_USE_LOCAL_CACHE = true;
 let rdkbRemoteBlocked = !RDKB_LIVE_ENABLED;
 
 // ══════════════════════════════════════
@@ -472,6 +477,94 @@ async function copyTextToClipboard(text) {
   return ok;
 }
 
+async function fetchLocalJson(url) {
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${url}`);
+  return resp.json();
+}
+
+function makeLayerRows(rows) {
+  return `<div style="font-family:var(--fdx-font);font-size:12px;min-width:240px">${rows.map(([label, value]) =>
+    `<div class="rr"><span class="rl">${esc(label)}</span><span class="rv">${esc(String(value || '—'))}</span></div>`
+  ).join('')}</div>`;
+}
+
+function createLocalGeoJsonLayer(layerKey, label, options = {}) {
+  const group = L.layerGroup();
+  const layerOptions = {
+    renderer: L.canvas({ padding: 0.4 }),
+    ...options
+  };
+
+  group.__mapexLabel = label;
+  group.__mapexLoad = async () => {
+    if (group.__mapexLoadPromise) return group.__mapexLoadPromise;
+    group.__mapexLoadPromise = (async () => {
+      const base = `${LOCAL_LAYER_ROOT}/${layerKey}`;
+      const metadata = await fetchLocalJson(`${base}/metadata.json`);
+      const parts = (metadata.parts || []).filter(part => String(part.file || '').endsWith('.geojson'));
+      let loaded = 0;
+      toast(`Loading ${label} from local cache...`, 3000);
+
+      for (const part of parts) {
+        const geojson = await fetchLocalJson(`${base}/${part.file}`);
+        L.geoJSON(geojson, layerOptions).addTo(group);
+        loaded += geojson.features ? geojson.features.length : 0;
+        if (loaded && loaded % 5000 === 0) await new Promise(resolve => requestAnimationFrame(resolve));
+      }
+
+      toast(`${label} loaded (${loaded.toLocaleString()} features)`, 3500);
+      return group;
+    })().catch(err => {
+      group.__mapexLoadPromise = null;
+      alog(`${label} local layer failed: ${err.message}`, 'err');
+      toast(`${label} layer unavailable`);
+      throw err;
+    });
+    return group.__mapexLoadPromise;
+  };
+  return group;
+}
+
+function maybeLoadLocalLayer(layer) {
+  if (layer && layer.__mapexLoad) layer.__mapexLoad().catch(() => {});
+}
+
+function rdkbPropertyPopup(props = {}) {
+  return makeLayerRows([
+    ['Full Address', props.FullAddress],
+    ['Unit', props.apt_no],
+    ['Street Number', props.street_no],
+    ['Street Name', props.street_name],
+    ['City', props.city],
+    ['Folio', props.Folio],
+    ['PID', props.PMBC_PID],
+    ['Owner Type', props.PMBC_OwnerType]
+  ]);
+}
+
+function rdkbParcelPopup(props = {}) {
+  return makeLayerRows([
+    ['PID', props.PID || props.PID_FORMATTED],
+    ['PIN', props.PIN],
+    ['Parcel Class', props.ParcelClass || props.PARCEL_CLASS],
+    ['Owner Type', props.OwnerType || props.OWNER_TYPE],
+    ['Municipality', props.Municipality || props.MUNICIPALITY],
+    ['Legal', props.LegalDescription || props.PMBC_LegalDescription || props.LEGAL_DESCRIPTION]
+  ]);
+}
+
+function rdkbAddressPopup(props = {}) {
+  return makeLayerRows([
+    ['Full Address', props.FULL_ADDRESS],
+    ['Building Address', props.Building_Address],
+    ['Unit Count', props.Unit_Count],
+    ['Building Name', props.BUILDING_NAME],
+    ['Locality', props.LOCALITY],
+    ['Address Type', props.ADDRESS_POINT_TYPE]
+  ]);
+}
+
 function makeAddressDisplay(parts = {}) {
   const suite = String(parts.suite || '').trim();
   const address = String(parts.address || '').trim();
@@ -481,21 +574,28 @@ function makeAddressDisplay(parts = {}) {
 // ══════════════════════════════════════
 // MAP SETUP (Tab 1 — Address Resolver)
 // ══════════════════════════════════════
-const map = L.map('map', { updateWhenIdle:true }).setView(CENTER, 14);
-const mainSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, attribution:'Esri', updateWhenIdle:true, keepBuffer:1}).addTo(map);
-const mainRoadTransport = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, opacity:.7, updateWhenIdle:true, keepBuffer:1});
-const mainRoadPlaces = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {maxZoom:19, updateWhenIdle:true, keepBuffer:1});
+const map = L.map('map', { updateWhenIdle:true, preferCanvas:true, maxZoom:MAP_MAX_ZOOM }).setView(CENTER, MAP_DEFAULT_ZOOM);
+const mainSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:MAP_MAX_ZOOM, maxNativeZoom:TILE_NATIVE_MAX_ZOOM, attribution:'Esri', updateWhenIdle:true, keepBuffer:1}).addTo(map);
+const mainRoadTransport = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {maxZoom:MAP_MAX_ZOOM, maxNativeZoom:TILE_NATIVE_MAX_ZOOM, opacity:.7, updateWhenIdle:true, keepBuffer:1});
+const mainRoadPlaces = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {maxZoom:MAP_MAX_ZOOM, maxNativeZoom:TILE_NATIVE_MAX_ZOOM, updateWhenIdle:true, keepBuffer:1});
 const mainRoads = L.layerGroup([mainRoadTransport, mainRoadPlaces]).addTo(map);
 
 const mainParcelsWMS = L.tileLayer.wms(BC_WFS, {
   layers:'pub:WHSE_CADASTRE.PMBC_PARCEL_FABRIC_POLY_SVW',
-  format:'image/png', transparent:true, opacity:.4, maxZoom:19, updateWhenIdle:true, keepBuffer:1
+  format:'image/png', transparent:true, opacity:.4, maxZoom:MAP_MAX_ZOOM, updateWhenIdle:true, keepBuffer:1
 }).addTo(map);
 
 let mainRDCK = null, mainRDKBProperty = null, mainRDKBParcels = null, mainRDKBAddressPoints = null, mainRDCKLayerGroup = null;
 const mainLayerControllers = new Map();
-try { mainRDCK = L.esri.dynamicMapLayer({url:RDCK_BASE, opacity:1}); } catch(e) {}
-try { if (isRDKBLiveEnabled()) mainRDKBProperty = L.esri.dynamicMapLayer({url:RDKB_PROPERTY_ROOT, opacity:.45}); } catch(e) {}
+try { mainRDCK = L.esri.dynamicMapLayer({url:RDCK_BASE, opacity:1, maxZoom:MAP_MAX_ZOOM}); } catch(e) {}
+if (RDKB_MAP_LAYERS_USE_LOCAL_CACHE) {
+  mainRDKBProperty = createLocalGeoJsonLayer('rdkb-property-search', 'RDKB Property Search', {
+    style: () => ({color:'#00805A', weight:1.4, fillColor:'#00805A', fillOpacity:.03}),
+    onEachFeature: (feature, layer) => layer.bindPopup(() => rdkbPropertyPopup(feature.properties || {}))
+  });
+} else {
+  try { mainRDKBProperty = L.esri.dynamicMapLayer({url:RDKB_PROPERTY_ROOT, opacity:.45, maxZoom:MAP_MAX_ZOOM}); } catch(e) {}
+}
 let mainRDCKHitTargets = null;
 let rdckIgnoreMapClickUntil = 0;
 
@@ -607,11 +707,18 @@ function ensureMainRDCKLayer() {
 }
 
 function ensureMainRDKBParcels() {
-  if (!isRDKBLiveEnabled()) return null;
   if (mainRDKBParcels) return mainRDKBParcels;
+  if (RDKB_MAP_LAYERS_USE_LOCAL_CACHE) {
+    mainRDKBParcels = createLocalGeoJsonLayer('rdkb-parcels', 'RDKB PMBC Parcels', {
+      style: () => ({color:'#0066CC', weight:1.2, fillColor:'#0066CC', fillOpacity:0}),
+      onEachFeature: (feature, layer) => layer.bindPopup(() => rdkbParcelPopup(feature.properties || {}))
+    });
+    return mainRDKBParcels;
+  }
   try {
     mainRDKBParcels = L.esri.featureLayer({
       url:RDKB_PARCELS,
+      maxZoom: MAP_MAX_ZOOM,
       style: () => ({color:'#0066CC', weight:1.5, fillOpacity:0})
     });
   } catch(e) {}
@@ -619,11 +726,24 @@ function ensureMainRDKBParcels() {
 }
 
 function ensureMainRDKBAddressPoints() {
-  if (!isRDKBLiveEnabled()) return null;
   if (mainRDKBAddressPoints) return mainRDKBAddressPoints;
+  if (RDKB_MAP_LAYERS_USE_LOCAL_CACHE) {
+    mainRDKBAddressPoints = createLocalGeoJsonLayer('rdkb-address-points', 'RDKB Address Points', {
+      pointToLayer: (geojson, latlng) => L.circleMarker(latlng, {
+        radius: 4,
+        color: '#6B4F00',
+        weight: 1,
+        fillColor: '#F4B400',
+        fillOpacity: .95
+      }),
+      onEachFeature: (feature, layer) => layer.bindPopup(() => rdkbAddressPopup(feature.properties || {}))
+    });
+    return mainRDKBAddressPoints;
+  }
   try {
     mainRDKBAddressPoints = L.esri.featureLayer({
       url:RDKB_ADDRESS_POINTS,
+      maxZoom: MAP_MAX_ZOOM,
       fields: ['OBJECTID_1', 'FULL_ADDRESS', 'Unit_Count', 'Building_Address', 'BUILDING_NAME', 'LOCALITY', 'ADDRESS_POINT_TYPE'],
       pointToLayer: (geojson, latlng) => L.circleMarker(latlng, {
         radius: 4,
@@ -932,6 +1052,7 @@ function bindMainLayerToggle(id, layer, unavailableMsg, opts = {}) {
     if (!resolved) return false;
     if (opts.beforeAdd) opts.beforeAdd();
     resolved.addTo(map);
+    maybeLoadLocalLayer(resolved);
     return true;
   };
   const removeLayer = () => {
@@ -2912,21 +3033,31 @@ async function queryExplorerInfoAtPoint(lat, lng) {
 
 function initExpMap() {
   if (expMap) return;
-  expMap = L.map('expMap').setView(CENTER, 14);
-  expSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19}).addTo(expMap);
-  expRoads = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,opacity:.7}).addTo(expMap);
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:19}).addTo(expMap);
-  expParcelsWMS = L.tileLayer.wms(BC_WFS,{layers:'pub:WHSE_CADASTRE.PMBC_PARCEL_FABRIC_POLY_SVW',format:'image/png',transparent:true,opacity:.5,maxZoom:19});
-  try { expRDCK = L.esri.dynamicMapLayer({url:RDCK_BASE,opacity:1}); } catch(e){}
-  try { if (isRDKBLiveEnabled()) expRDKBProperty = L.esri.dynamicMapLayer({url:RDKB_PROPERTY_ROOT,opacity:.45}); } catch(e){}
-  try {
-    if (isRDKBLiveEnabled()) {
+  expMap = L.map('expMap', { preferCanvas:true, maxZoom:MAP_MAX_ZOOM }).setView(CENTER, MAP_DEFAULT_ZOOM);
+  expSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:MAP_MAX_ZOOM,maxNativeZoom:TILE_NATIVE_MAX_ZOOM}).addTo(expMap);
+  expRoads = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:MAP_MAX_ZOOM,maxNativeZoom:TILE_NATIVE_MAX_ZOOM,opacity:.7}).addTo(expMap);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:MAP_MAX_ZOOM,maxNativeZoom:TILE_NATIVE_MAX_ZOOM}).addTo(expMap);
+  expParcelsWMS = L.tileLayer.wms(BC_WFS,{layers:'pub:WHSE_CADASTRE.PMBC_PARCEL_FABRIC_POLY_SVW',format:'image/png',transparent:true,opacity:.5,maxZoom:MAP_MAX_ZOOM});
+  try { expRDCK = L.esri.dynamicMapLayer({url:RDCK_BASE,opacity:1,maxZoom:MAP_MAX_ZOOM}); } catch(e){}
+  if (RDKB_MAP_LAYERS_USE_LOCAL_CACHE) {
+    expRDKBProperty = createLocalGeoJsonLayer('rdkb-property-search', 'RDKB Property Search', {
+      style: () => ({color:'#00805A', weight:1.4, fillColor:'#00805A', fillOpacity:.03}),
+      onEachFeature: (feature, layer) => layer.bindPopup(() => rdkbPropertyPopup(feature.properties || {}))
+    });
+    expRDKBParcels = createLocalGeoJsonLayer('rdkb-parcels', 'RDKB PMBC Parcels', {
+      style: () => ({color:'#0066CC', weight:1.2, fillColor:'#0066CC', fillOpacity:0}),
+      onEachFeature: (feature, layer) => layer.bindPopup(() => rdkbParcelPopup(feature.properties || {}))
+    });
+  } else {
+    try { expRDKBProperty = L.esri.dynamicMapLayer({url:RDKB_PROPERTY_ROOT,opacity:.45,maxZoom:MAP_MAX_ZOOM}); } catch(e){}
+    try {
       expRDKBParcels = L.esri.featureLayer({
         url:RDKB_PARCELS,
+        maxZoom: MAP_MAX_ZOOM,
         style: () => ({color:'#0066CC', weight:1.5, fillOpacity:0})
       });
-    }
-  } catch(e){}
+    } catch(e){}
+  }
 
   document.getElementById('lSat').addEventListener('change',e=>{e.target.checked?expSat.addTo(expMap):expMap.removeLayer(expSat)});
   document.getElementById('lRoads').addEventListener('change',e=>{e.target.checked?expRoads.addTo(expMap):expMap.removeLayer(expRoads)});
@@ -2937,11 +3068,21 @@ function initExpMap() {
   });
   document.getElementById('lRDKBProp').addEventListener('change',e=>{
     if(!expRDKBProperty){toast('RDKB property layer unavailable');e.target.checked=false;return}
-    e.target.checked?expRDKBProperty.addTo(expMap):expMap.removeLayer(expRDKBProperty);
+    if (e.target.checked) {
+      expRDKBProperty.addTo(expMap);
+      maybeLoadLocalLayer(expRDKBProperty);
+    } else {
+      expMap.removeLayer(expRDKBProperty);
+    }
   });
   document.getElementById('lRDKBParcels').addEventListener('change',e=>{
     if(!expRDKBParcels){toast('RDKB parcel layer unavailable');e.target.checked=false;return}
-    e.target.checked?expRDKBParcels.addTo(expMap):expMap.removeLayer(expRDKBParcels);
+    if (e.target.checked) {
+      expRDKBParcels.addTo(expMap);
+      maybeLoadLocalLayer(expRDKBParcels);
+    } else {
+      expMap.removeLayer(expRDKBParcels);
+    }
   });
 
   // Click to query parcel
@@ -2976,10 +3117,10 @@ let cadMap, cadLayers=[];
 
 function initCadMap() {
   if(cadMap) return;
-  cadMap = L.map('cadMap').setView(CENTER, 14);
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19}).addTo(cadMap);
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,opacity:.7}).addTo(cadMap);
-  L.tileLayer.wms(BC_WFS,{layers:'pub:WHSE_CADASTRE.PMBC_PARCEL_FABRIC_POLY_SVW',format:'image/png',transparent:true,opacity:.4,maxZoom:19}).addTo(cadMap);
+  cadMap = L.map('cadMap', { preferCanvas:true, maxZoom:MAP_MAX_ZOOM }).setView(CENTER, MAP_DEFAULT_ZOOM);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:MAP_MAX_ZOOM,maxNativeZoom:TILE_NATIVE_MAX_ZOOM}).addTo(cadMap);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:MAP_MAX_ZOOM,maxNativeZoom:TILE_NATIVE_MAX_ZOOM,opacity:.7}).addTo(cadMap);
+  L.tileLayer.wms(BC_WFS,{layers:'pub:WHSE_CADASTRE.PMBC_PARCEL_FABRIC_POLY_SVW',format:'image/png',transparent:true,opacity:.4,maxZoom:MAP_MAX_ZOOM}).addTo(cadMap);
 }
 
 function clearCadLayers(){cadLayers.forEach(l=>cadMap.removeLayer(l));cadLayers=[];}

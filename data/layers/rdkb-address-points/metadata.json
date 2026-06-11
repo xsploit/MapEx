@@ -1,0 +1,234 @@
+{
+  "exportedAt": "2026-03-31T09:54:08.564Z",
+  "layerKey": "rdkb-address-points",
+  "label": "RDKB Address Points",
+  "sourceType": "arcgis",
+  "transport": "curl",
+  "url": "https://mapping.rdkb.com/server/rest/services/Planning/BaseLayersExternal/FeatureServer/261",
+  "availableCount": 12855,
+  "exportedCount": 12855,
+  "geometryType": "esriGeometryPoint",
+  "objectIdField": "OBJECTID_1",
+  "displayField": "STREET_NAME",
+  "outputFormat": "geojson",
+  "precision": 6,
+  "chunkSize": 500,
+  "fields": [
+    {
+      "name": "OBJECTID_1",
+      "alias": "OBJECTID_1",
+      "type": "esriFieldTypeOID"
+    },
+    {
+      "name": "FULL_ADDRESS",
+      "alias": "Full Address",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "ADDRESS_POINT_TYPE",
+      "alias": "Address Point Type",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "STREET_NUMBER_PREFIX",
+      "alias": "Street Number Prefix",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "StreetNumber",
+      "alias": "Street Number",
+      "type": "esriFieldTypeInteger"
+    },
+    {
+      "name": "NumberSuffix",
+      "alias": "Number Suffix",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "STREET_DIR_PREFIX",
+      "alias": "Street Direction Prefix",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "STREET_NAME",
+      "alias": "Street Name",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "STREET_TYPE",
+      "alias": "Street Type",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "STREET_DIR_SUFFIX",
+      "alias": "Street Direction Suffix",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "LOCALITY",
+      "alias": "Locality",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "LOCALITY_NAME_ALIAS",
+      "alias": "Locality Name Alias",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "ISSUING_AGENCY",
+      "alias": "Issuing Agency",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "TELUS_COMMUNITY",
+      "alias": "Telus Community",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "POSTAL_CODE",
+      "alias": "Postal Code",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "ALTERNATE_ACCESS",
+      "alias": "Alternate Access",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "ADDRESS_NOTES",
+      "alias": "Address Notes",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "BUILDING_TYPE",
+      "alias": "Building Type",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "BUILDING_NAME",
+      "alias": "Building Name",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "Building_Address",
+      "alias": "Building_Address",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "Unit_Count",
+      "alias": "Unit_Count",
+      "type": "esriFieldTypeInteger"
+    },
+    {
+      "name": "GlobalID",
+      "alias": "GlobalID",
+      "type": "esriFieldTypeGlobalID"
+    }
+  ],
+  "parts": [
+    {
+      "file": "part-0001.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0002.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0003.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0004.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0005.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0006.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0007.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0008.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0009.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0010.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0011.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0012.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0013.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0014.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0015.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0016.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0017.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0018.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0019.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0020.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0021.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0022.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0023.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0024.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0025.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0026.geojson",
+      "count": 355
+    }
+  ]
+}

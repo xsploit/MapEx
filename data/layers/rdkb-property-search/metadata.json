@@ -1,0 +1,430 @@
+{
+  "exportedAt": "2026-03-31T10:00:24.002Z",
+  "layerKey": "rdkb-property-search",
+  "label": "RDKB Property Search",
+  "sourceType": "arcgis",
+  "transport": "curl",
+  "url": "https://mapping.rdkb.com/server/rest/services/Planning/Property_Search/FeatureServer/150",
+  "availableCount": 37416,
+  "exportedCount": 37416,
+  "geometryType": "esriGeometryPolygon",
+  "objectIdField": "OBJECTID",
+  "displayField": "street_name",
+  "outputFormat": "geojson",
+  "precision": 6,
+  "chunkSize": 500,
+  "fields": [
+    {
+      "name": "OBJECTID",
+      "alias": "OBJECTID",
+      "type": "esriFieldTypeOID"
+    },
+    {
+      "name": "PMBCParcelGUID",
+      "alias": "PMBC Parcel Polygon GUID",
+      "type": "esriFieldTypeGUID"
+    },
+    {
+      "name": "PMBC_PID",
+      "alias": "PMBC Parcel PID",
+      "type": "esriFieldTypeInteger"
+    },
+    {
+      "name": "PMBC_PIN",
+      "alias": "PMBC Parcel PIN",
+      "type": "esriFieldTypeInteger"
+    },
+    {
+      "name": "PMBC_ParcelClass",
+      "alias": "PMBC Parcel Class",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "PMBC_OwnerType",
+      "alias": "PMBC Owner Type",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "PMBC_LegalDescription",
+      "alias": "PMBC Legal Description",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "Folio",
+      "alias": "Folio",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "FullAddress",
+      "alias": "Full Address",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "apt_no",
+      "alias": "Apartment Number",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "street_no",
+      "alias": "Street Number",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "street_direction_prefix",
+      "alias": "Street Direction Prefix",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "street_name",
+      "alias": "Street Name",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "street_direction_suffix",
+      "alias": "Street Direction Suffix",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "postal_code",
+      "alias": "Postal Code",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "city",
+      "alias": "City",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "province",
+      "alias": "Province",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "AddressID",
+      "alias": "Address ID",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "TempKey",
+      "alias": "Key",
+      "type": "esriFieldTypeString"
+    },
+    {
+      "name": "GlobalID",
+      "alias": "GlobalID",
+      "type": "esriFieldTypeGlobalID"
+    },
+    {
+      "name": "Shape__Area",
+      "alias": "Shape.STArea()",
+      "type": "esriFieldTypeDouble"
+    },
+    {
+      "name": "Shape__Length",
+      "alias": "Shape.STLength()",
+      "type": "esriFieldTypeDouble"
+    }
+  ],
+  "parts": [
+    {
+      "file": "part-0001.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0002.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0003.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0004.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0005.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0006.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0007.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0008.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0009.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0010.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0011.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0012.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0013.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0014.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0015.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0016.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0017.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0018.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0019.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0020.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0021.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0022.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0023.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0024.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0025.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0026.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0027.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0028.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0029.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0030.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0031.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0032.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0033.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0034.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0035.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0036.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0037.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0038.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0039.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0040.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0041.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0042.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0043.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0044.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0045.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0046.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0047.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0048.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0049.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0050.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0051.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0052.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0053.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0054.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0055.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0056.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0057.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0058.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0059.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0060.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0061.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0062.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0063.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0064.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0065.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0066.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0067.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0068.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0069.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0070.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0071.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0072.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0073.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0074.geojson",
+      "count": 500
+    },
+    {
+      "file": "part-0075.geojson",
+      "count": 416
+    }
+  ]
+}
