@@ -360,7 +360,7 @@ const LOCAL_RDKB_DATA_URL = 'data/rdkb-addresses.json';
 const LOCAL_DERIVED_ADDRESS_SEARCH_URL = 'data/derived/address-search.json';
 const LOCAL_CACHE_DB_NAME = 'mapex-local-cache-derived-v3';
 const LOCAL_CACHE_DB_VERSION = 2;
-const LOCAL_CACHE_SCHEMA_VERSION = 'autocomplete-derived-v3';
+const LOCAL_CACHE_SCHEMA_VERSION = 'autocomplete-derived-v4';
 const LOCAL_CACHE_STORE = 'kv';
 const LOCAL_CACHE_VERSION_KEY = 'autocompleteVersion';
 const LOCAL_CACHE_ROWS_KEY = 'autocompleteRows';
@@ -1491,6 +1491,7 @@ function normalizeDisplayAddress(v='') {
 }
 
 function coerceFiniteNumber(v) {
+  if (v === null || v === undefined || v === '') return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
@@ -1593,7 +1594,8 @@ function buildLocalAutocompleteRows(rdckRows=[], rdkbPayload=[], derivedPayload=
     sortRank: row.suite ? 0 : 2
   }));
 
-  const rdkbItems = rdkbRows.map(row => {
+  const hasDerivedRdkbRows = derivedRows.some(row => String(row.source || '').toLowerCase() === 'rdkb');
+  const rdkbItems = hasDerivedRdkbRows ? [] : rdkbRows.map(row => {
     const streetName = buildLocalStreetText([
       row.streetDirPrefix,
       row.streetName,
