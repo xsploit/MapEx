@@ -1183,7 +1183,8 @@ const CONFIG = {
   useNominatim: true,
   layerParcels: false,
   layerRDCK: false,
-  layerRDKB: false
+  layerRDKB: false,
+  osrmRouteBaseUrl: 'https://routing.openstreetmap.de/routed-car/route/v1/driving'
 };
 
 const RDCK_ADDR = 'https://gis.rdck.bc.ca/server/rest/services/RDCK_Public_Web_Map_MIL/MapServer/0';
@@ -1401,6 +1402,11 @@ async function fetchJson(url, opts) {
   const res = await fetch(url, opts);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
+}
+
+function buildRouteUrl(fromCoords, toCoords) {
+  const baseUrl = String(CONFIG.osrmRouteBaseUrl || '').replace(/\/+$/, '');
+  return `${baseUrl}/${fromCoords};${toCoords}?overview=full&geometries=geojson`;
 }
 
 async function resolveRDCK(query, hints = {}) {
@@ -1915,8 +1921,7 @@ async function calculateGap(i1, i2) {
       resolveAddress(fromAddr, { locality: fromCity }),
       resolveAddress(toAddr, { locality: toCity })
     ]);
-    const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${fromPoint.coords};${toPoint.coords}?overview=full&geometries=geojson`);
-    const data = await res.json();
+    const data = await fetchJson(buildRouteUrl(fromPoint.coords, toPoint.coords));
 
     if (data.code !== "Ok") {
       showResult(`<div class="result-header"><span>Route Error</span><span class="close-btn" onclick="hideResult()">&times;</span></div><div class="result-body"><p style="color:var(--fdx-red)">Routing failed: ${data.code}</p></div>`);
@@ -2193,8 +2198,7 @@ document.getElementById('lookupBtn').addEventListener('click', async () => {
       resolvePoint('addrB', 'latB', 'lonB')
     ]);
 
-    const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${ptA.coords};${ptB.coords}?overview=full&geometries=geojson`);
-    const data = await res.json();
+    const data = await fetchJson(buildRouteUrl(ptA.coords, ptB.coords));
 
     if (data.code !== "Ok") throw new Error(`Routing failed: ${data.code}`);
 
