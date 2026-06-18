@@ -1027,6 +1027,7 @@
     <div class="settings-sec">
       <h4>Map Overlays</h4>
       <label class="settings-check"><input type="checkbox" id="cfgLayerParcels"> <span>ParcelMap BC</span></label>
+      <label class="settings-check"><input type="checkbox" id="cfgLayerRDCKImagery"> <span>RDCK Imagery 2025</span></label>
       <label class="settings-check"><input type="checkbox" id="cfgLayerRDCK"> <span>RDCK address points</span></label>
       <label class="settings-check"><input type="checkbox" id="cfgLayerRDKB"> <span>RDKB address points</span></label>
       <div class="settings-note">These overlays stay off by default so the dashboard keeps the same feel and the maps stay light until you ask for more context.</div>
@@ -1182,11 +1183,16 @@ const CONFIG = {
   useBC: true,
   useNominatim: true,
   layerParcels: false,
+  layerRDCKImagery: false,
   layerRDCK: false,
   layerRDKB: false,
   osrmRouteBaseUrl: 'https://routing.openstreetmap.de/routed-car/route/v1/driving'
 };
 
+const MAP_MAX_ZOOM = 22;
+const TILE_NATIVE_MAX_ZOOM = 19;
+const RDCK_IMAGERY = 'https://gis.rdck.bc.ca/server/rest/services/RDCK_Imagery_Collection_V5/MapServer';
+const RDCK_IMAGERY_2025_LAYER_IDS = [95];
 const RDCK_ADDR = 'https://gis.rdck.bc.ca/server/rest/services/RDCK_Public_Web_Map_MIL/MapServer/0';
 const RDKB_PROPERTY = 'https://mapping.rdkb.com/server/rest/services/Planning/Property_Search/MapServer/150';
 const RDKB_ADDRESS_TABLE = 'https://mapping.rdkb.com/server/rest/services/Planning/BaseLayersExternal/FeatureServer/260';
@@ -1200,20 +1206,28 @@ let lastBCGeo = 0;
 let lastNominatim = 0;
 
 // ── Map ──
-const map = L.map('map', { zoomControl: true }).setView([49.28, -117.65], 10);
+const map = L.map('map', { zoomControl: true, maxZoom: MAP_MAX_ZOOM }).setView([49.28, -117.65], 10);
+ensureMapPanes(map);
 // Satellite imagery (Esri World Imagery — free, no API key)
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-  attribution: '&copy; Esri, Maxar, Earthstar Geographics', maxZoom: 19
+  attribution: '&copy; Esri, Maxar, Earthstar Geographics',
+  maxZoom: MAP_MAX_ZOOM,
+  maxNativeZoom: TILE_NATIVE_MAX_ZOOM
 }).addTo(map);
 
 const mainOverlays = createOverlaySet(map);
 syncOverlaySet(mainOverlays);
 // Road labels overlay on top of satellite
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
-  maxZoom: 19, opacity: 0.7
+  maxZoom: MAP_MAX_ZOOM,
+  maxNativeZoom: TILE_NATIVE_MAX_ZOOM,
+  opacity: 0.7,
+  pane: 'mapLabelPane'
 }).addTo(map);
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
-  maxZoom: 19
+  maxZoom: MAP_MAX_ZOOM,
+  maxNativeZoom: TILE_NATIVE_MAX_ZOOM,
+  pane: 'mapLabelPane'
 }).addTo(map);
 
 // FedEx purple pin (origin)
@@ -1319,6 +1333,33 @@ function resolveCity(postal) {
   if (fullPostalToCity[clean]) return fullPostalToCity[clean];
   const prefix = clean.substring(0, 3);
   return postalPrefixToCity[prefix] || "Unknown";
+}
+
+function ensureMapPanes(targetMap) {
+  if (!targetMap || !targetMap.createPane) return;
+  if (!targetMap.getPane('rdckImageryPane')) {
+    const imageryPane = targetMap.createPane('rdckImageryPane');
+    imageryPane.style.zIndex = 210;
+  }
+  if (!targetMap.getPane('mapLabelPane')) {
+    const labelPane = targetMap.createPane('mapLabelPane');
+    labelPane.style.zIndex = 650;
+    labelPane.style.pointerEvents = 'none';
+  }
+}
+
+function createRDCKImageryLayer(targetMap, opacity = 0.92) {
+  if (!targetMap || !window.L || !L.esri) return null;
+  ensureMapPanes(targetMap);
+  return L.esri.dynamicMapLayer({
+    url: RDCK_IMAGERY,
+    layers: RDCK_IMAGERY_2025_LAYER_IDS,
+    opacity,
+    format: 'png32',
+    transparent: true,
+    maxZoom: MAP_MAX_ZOOM,
+    pane: 'rdckImageryPane'
+  });
 }
 
 function normalizeText(v) {
@@ -1542,12 +1583,13 @@ async function resolveAddress(query, hints = {}) {
 
 function createOverlaySet(targetMap) {
   return {
+    rdckImagery: createRDCKImageryLayer(targetMap),
     parcels: L.tileLayer.wms(BC_WFS, {
       layers: 'pub:WHSE_CADASTRE.PMBC_PARCEL_FABRIC_POLY_SVW',
       format: 'image/png',
       transparent: true,
       opacity: 0.28,
-      maxZoom: 19
+      maxZoom: MAP_MAX_ZOOM
     }),
     rdck: L.esri.featureLayer({
       url: RDCK_ADDR,
@@ -1580,7 +1622,7 @@ function createOverlaySet(targetMap) {
 
 function syncOverlaySet(layerSet, targetMap = map) {
   if (!layerSet || !targetMap) return;
-  [[CONFIG.layerParcels, layerSet.parcels], [CONFIG.layerRDCK, layerSet.rdck], [CONFIG.layerRDKB, layerSet.rdkb]].forEach(([enabled, layer]) => {
+  [[CONFIG.layerRDCKImagery, layerSet.rdckImagery], [CONFIG.layerParcels, layerSet.parcels], [CONFIG.layerRDCK, layerSet.rdck], [CONFIG.layerRDKB, layerSet.rdkb]].forEach(([enabled, layer]) => {
     if (!layer) return;
     if (enabled && !targetMap.hasLayer(layer)) layer.addTo(targetMap);
     if (!enabled && targetMap.hasLayer(layer)) targetMap.removeLayer(layer);
@@ -2097,6 +2139,7 @@ function applySettingsFromUI() {
   CONFIG.useBC = document.getElementById('cfgUseBC').checked;
   CONFIG.useNominatim = document.getElementById('cfgUseNominatim').checked;
   CONFIG.layerParcels = document.getElementById('cfgLayerParcels').checked;
+  CONFIG.layerRDCKImagery = document.getElementById('cfgLayerRDCKImagery').checked;
   CONFIG.layerRDCK = document.getElementById('cfgLayerRDCK').checked;
   CONFIG.layerRDKB = document.getElementById('cfgLayerRDKB').checked;
   syncOverlaySet(mainOverlays, map);
@@ -2116,7 +2159,7 @@ settingsBtn.addEventListener('click', e => {
 settingsCloseBtn.addEventListener('click', () => toggleSettingsPanel(false));
 settingsPanel.addEventListener('click', e => e.stopPropagation());
 document.addEventListener('click', () => toggleSettingsPanel(false));
-['resolverMode','cfgUseRDCK','cfgUseRDKB','cfgUseBC','cfgUseNominatim','cfgLayerParcels','cfgLayerRDCK','cfgLayerRDKB'].forEach(id => {
+['resolverMode','cfgUseRDCK','cfgUseRDKB','cfgUseBC','cfgUseNominatim','cfgLayerParcels','cfgLayerRDCKImagery','cfgLayerRDCK','cfgLayerRDKB'].forEach(id => {
   document.getElementById(id).addEventListener('change', applySettingsFromUI);
 });
 document.getElementById('clearGeoCacheBtn').addEventListener('click', () => {
@@ -2150,16 +2193,24 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
 // TAB 2: ROUTE LOOKUP
 // ══════════════════════════════════════════════════
 function initLookupMap() {
-  lookupMap = L.map('lookupMap', { zoomControl: true }).setView([49.28, -117.65], 11);
+  lookupMap = L.map('lookupMap', { zoomControl: true, maxZoom: MAP_MAX_ZOOM }).setView([49.28, -117.65], 11);
+  ensureMapPanes(lookupMap);
   // Satellite
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-    attribution: '&copy; Esri, Maxar, Earthstar Geographics', maxZoom: 19
+    attribution: '&copy; Esri, Maxar, Earthstar Geographics',
+    maxZoom: MAP_MAX_ZOOM,
+    maxNativeZoom: TILE_NATIVE_MAX_ZOOM
   }).addTo(lookupMap);
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom: 19, opacity: 0.7
+    maxZoom: MAP_MAX_ZOOM,
+    maxNativeZoom: TILE_NATIVE_MAX_ZOOM,
+    opacity: 0.7,
+    pane: 'mapLabelPane'
   }).addTo(lookupMap);
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom: 19
+    maxZoom: MAP_MAX_ZOOM,
+    maxNativeZoom: TILE_NATIVE_MAX_ZOOM,
+    pane: 'mapLabelPane'
   }).addTo(lookupMap);
   lookupOverlays = createOverlaySet(lookupMap);
   syncOverlaySet(lookupOverlays, lookupMap);

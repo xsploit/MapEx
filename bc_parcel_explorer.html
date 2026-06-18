@@ -191,6 +191,7 @@
     <div class="psec">
       <h3>Map Layers</h3>
       <div class="ltog"><input type="checkbox" id="mSat" checked><div class="ldot" style="background:#2563EB"></div><span>Satellite Imagery</span></div>
+      <div class="ltog"><input type="checkbox" id="mRDCKImagery"><div class="ldot" style="background:#00A1E4"></div><span>RDCK Imagery 2025</span></div>
       <div class="ltog"><input type="checkbox" id="mRoads" checked><div class="ldot" style="background:#666"></div><span>Road Labels</span></div>
       <div class="ltog"><input type="checkbox" id="mParcelsWMS" checked><div class="ldot" style="background:#FF6200"></div><span>ParcelMap BC (WMS)</span></div>
       <div class="ltog"><input type="checkbox" id="mRDCK"><div class="ldot" style="background:#4D148C"></div><span>RDCK Public Map Service</span></div>
@@ -250,6 +251,7 @@
     <div class="psec">
       <h3>Map Layers</h3>
       <div class="ltog"><input type="checkbox" id="lSat" checked><div class="ldot" style="background:#2563EB"></div><span>Satellite Imagery</span></div>
+      <div class="ltog"><input type="checkbox" id="lRDCKImagery"><div class="ldot" style="background:#00A1E4"></div><span>RDCK Imagery 2025</span></div>
       <div class="ltog"><input type="checkbox" id="lRoads" checked><div class="ldot" style="background:#666"></div><span>Road Labels</span></div>
       <div class="ltog"><input type="checkbox" id="lParcelsWMS"><div class="ldot" style="background:#FF6200"></div><span>ParcelMap BC (WMS)</span></div>
       <div class="ltog"><input type="checkbox" id="lRDCK"><div class="ldot" style="background:#4D148C"></div><span>RDCK Public Map Service</span></div>
@@ -342,6 +344,8 @@
 // CONSTANTS
 // ══════════════════════════════════════
 const RDCK_BASE = 'https://gis.rdck.bc.ca/server/rest/services/RDCK_Public_Web_Map_MIL/MapServer';
+const RDCK_IMAGERY = 'https://gis.rdck.bc.ca/server/rest/services/RDCK_Imagery_Collection_V5/MapServer';
+const RDCK_IMAGERY_2025_LAYER_IDS = [95];
 const RDCK_ADDR = RDCK_BASE + '/0';   // Address Points
 const RDCK_CAD  = RDCK_BASE + '/8';   // Cadastre
 const RDKB_PROPERTY_ROOT = 'https://mapping.rdkb.com/server/rest/services/Planning/Property_Search/MapServer';
@@ -483,6 +487,33 @@ async function fetchLocalJson(url) {
   return resp.json();
 }
 
+function ensureMapPanes(targetMap) {
+  if (!targetMap || !targetMap.createPane) return;
+  if (!targetMap.getPane('rdckImageryPane')) {
+    const imageryPane = targetMap.createPane('rdckImageryPane');
+    imageryPane.style.zIndex = 210;
+  }
+  if (!targetMap.getPane('mapLabelPane')) {
+    const labelPane = targetMap.createPane('mapLabelPane');
+    labelPane.style.zIndex = 650;
+    labelPane.style.pointerEvents = 'none';
+  }
+}
+
+function createRDCKImageryLayer(targetMap, opacity = 0.92) {
+  if (!targetMap || !window.L || !L.esri) return null;
+  ensureMapPanes(targetMap);
+  return L.esri.dynamicMapLayer({
+    url: RDCK_IMAGERY,
+    layers: RDCK_IMAGERY_2025_LAYER_IDS,
+    opacity,
+    format: 'png32',
+    transparent: true,
+    maxZoom: MAP_MAX_ZOOM,
+    pane: 'rdckImageryPane'
+  });
+}
+
 function makeLayerRows(rows) {
   return `<div style="font-family:var(--fdx-font);font-size:12px;min-width:240px">${rows.map(([label, value]) =>
     `<div class="rr"><span class="rl">${esc(label)}</span><span class="rv">${esc(String(value || '—'))}</span></div>`
@@ -575,9 +606,11 @@ function makeAddressDisplay(parts = {}) {
 // MAP SETUP (Tab 1 — Address Resolver)
 // ══════════════════════════════════════
 const map = L.map('map', { updateWhenIdle:true, preferCanvas:true, maxZoom:MAP_MAX_ZOOM }).setView(CENTER, MAP_DEFAULT_ZOOM);
+ensureMapPanes(map);
 const mainSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:MAP_MAX_ZOOM, maxNativeZoom:TILE_NATIVE_MAX_ZOOM, attribution:'Esri', updateWhenIdle:true, keepBuffer:1}).addTo(map);
-const mainRoadTransport = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {maxZoom:MAP_MAX_ZOOM, maxNativeZoom:TILE_NATIVE_MAX_ZOOM, opacity:.7, updateWhenIdle:true, keepBuffer:1});
-const mainRoadPlaces = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {maxZoom:MAP_MAX_ZOOM, maxNativeZoom:TILE_NATIVE_MAX_ZOOM, updateWhenIdle:true, keepBuffer:1});
+const mainRDCKImagery = createRDCKImageryLayer(map);
+const mainRoadTransport = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {maxZoom:MAP_MAX_ZOOM, maxNativeZoom:TILE_NATIVE_MAX_ZOOM, opacity:.7, updateWhenIdle:true, keepBuffer:1, pane:'mapLabelPane'});
+const mainRoadPlaces = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {maxZoom:MAP_MAX_ZOOM, maxNativeZoom:TILE_NATIVE_MAX_ZOOM, updateWhenIdle:true, keepBuffer:1, pane:'mapLabelPane'});
 const mainRoads = L.layerGroup([mainRoadTransport, mainRoadPlaces]).addTo(map);
 
 const mainParcelsWMS = L.tileLayer.wms(BC_WFS, {
@@ -1146,6 +1179,7 @@ map.on('click', async e => {
   }
 });
 bindMainLayerToggle('mSat', mainSat, 'Satellite layer unavailable');
+bindMainLayerToggle('mRDCKImagery', mainRDCKImagery, 'RDCK 2025 imagery unavailable');
 bindMainLayerToggle('mRoads', mainRoads, 'Road labels unavailable');
 bindMainLayerToggle('mParcelsWMS', mainParcelsWMS, 'ParcelMap BC layer unavailable');
 bindMainLayerToggle('mRDCK', ensureMainRDCKLayer, 'RDCK layer unavailable');
@@ -2857,7 +2891,7 @@ async function queryParcelAtPoint(lat, lng) {
 // ══════════════════════════════════════
 // TAB 2: MAP EXPLORER
 // ══════════════════════════════════════
-let expMap, expSat, expRoads, expParcelsWMS, expRDCK, expRDKBProperty, expRDKBParcels;
+let expMap, expSat, expRDCKImagery, expRoads, expParcelsWMS, expRDCK, expRDKBProperty, expRDKBParcels;
 
 function renderInfoSection(title, rows) {
   return `<div style="margin-bottom:10px"><div style="font-weight:700;color:var(--fdx-purple);margin-bottom:4px">${esc(title)}</div>${rows.map(([l,v])=>`<div class="rr"><span class="rl">${esc(l)}</span><span class="rv">${esc(String(v||'—'))}</span></div>`).join('')}</div>`;
@@ -3036,9 +3070,13 @@ async function queryExplorerInfoAtPoint(lat, lng) {
 function initExpMap() {
   if (expMap) return;
   expMap = L.map('expMap', { preferCanvas:true, maxZoom:MAP_MAX_ZOOM }).setView(CENTER, MAP_DEFAULT_ZOOM);
+  ensureMapPanes(expMap);
   expSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:MAP_MAX_ZOOM,maxNativeZoom:TILE_NATIVE_MAX_ZOOM}).addTo(expMap);
-  expRoads = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:MAP_MAX_ZOOM,maxNativeZoom:TILE_NATIVE_MAX_ZOOM,opacity:.7}).addTo(expMap);
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:MAP_MAX_ZOOM,maxNativeZoom:TILE_NATIVE_MAX_ZOOM}).addTo(expMap);
+  expRDCKImagery = createRDCKImageryLayer(expMap);
+  expRoads = L.layerGroup([
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:MAP_MAX_ZOOM,maxNativeZoom:TILE_NATIVE_MAX_ZOOM,opacity:.7,pane:'mapLabelPane'}),
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:MAP_MAX_ZOOM,maxNativeZoom:TILE_NATIVE_MAX_ZOOM,pane:'mapLabelPane'})
+  ]).addTo(expMap);
   expParcelsWMS = L.tileLayer.wms(BC_WFS,{layers:'pub:WHSE_CADASTRE.PMBC_PARCEL_FABRIC_POLY_SVW',format:'image/png',transparent:true,opacity:.5,maxZoom:MAP_MAX_ZOOM});
   try { expRDCK = L.esri.dynamicMapLayer({url:RDCK_BASE,opacity:1,maxZoom:MAP_MAX_ZOOM}); } catch(e){}
   if (RDKB_MAP_LAYERS_USE_LOCAL_CACHE) {
@@ -3062,6 +3100,10 @@ function initExpMap() {
   }
 
   document.getElementById('lSat').addEventListener('change',e=>{e.target.checked?expSat.addTo(expMap):expMap.removeLayer(expSat)});
+  document.getElementById('lRDCKImagery').addEventListener('change',e=>{
+    if(!expRDCKImagery){toast('RDCK 2025 imagery unavailable');e.target.checked=false;return}
+    e.target.checked?expRDCKImagery.addTo(expMap):expMap.removeLayer(expRDCKImagery);
+  });
   document.getElementById('lRoads').addEventListener('change',e=>{e.target.checked?expRoads.addTo(expMap):expMap.removeLayer(expRoads)});
   document.getElementById('lParcelsWMS').addEventListener('change',e=>{e.target.checked?expParcelsWMS.addTo(expMap):expMap.removeLayer(expParcelsWMS)});
   document.getElementById('lRDCK').addEventListener('change',e=>{
