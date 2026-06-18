@@ -1027,7 +1027,7 @@
     <div class="settings-sec">
       <h4>Map Overlays</h4>
       <label class="settings-check"><input type="checkbox" id="cfgLayerParcels"> <span>ParcelMap BC</span></label>
-      <label class="settings-check"><input type="checkbox" id="cfgLayerRDCKImagery"> <span>RDCK Imagery 2025</span></label>
+      <label class="settings-check"><input type="checkbox" id="cfgLayerRDCKImagery"> <span>RDCK Imagery (auto)</span></label>
       <label class="settings-check"><input type="checkbox" id="cfgLayerRDCK"> <span>RDCK address points</span></label>
       <label class="settings-check"><input type="checkbox" id="cfgLayerRDKB"> <span>RDKB address points</span></label>
       <div class="settings-note">These overlays stay off by default so the dashboard keeps the same feel and the maps stay light until you ask for more context.</div>
@@ -1192,7 +1192,21 @@ const CONFIG = {
 const MAP_MAX_ZOOM = 22;
 const TILE_NATIVE_MAX_ZOOM = 19;
 const RDCK_IMAGERY = 'https://gis.rdck.bc.ca/server/rest/services/RDCK_Imagery_Collection_V5/MapServer';
-const RDCK_IMAGERY_2025_LAYER_IDS = [95];
+const RDCK_IMAGERY_YEARS = [
+  { year:'2025', footprintLayerId:94, imageLayerId:95 },
+  { year:'2022', footprintLayerId:76, imageLayerId:77 },
+  { year:'2021', footprintLayerId:80, imageLayerId:81 },
+  { year:'2020 Enhancement', footprintLayerId:90, imageLayerId:91 },
+  { year:'2020', footprintLayerId:72, imageLayerId:73 },
+  { year:'2018', footprintLayerId:68, imageLayerId:69 },
+  { year:'2017', footprintLayerId:64, imageLayerId:65 },
+  { year:'2016', footprintLayerId:60, imageLayerId:61 },
+  { year:'2013', footprintLayerId:56, imageLayerId:57 },
+  { year:'2012', footprintLayerId:14, imageLayerId:15 },
+  { year:'2011', footprintLayerId:10, imageLayerId:11 },
+  { year:'2010', footprintLayerId:6, imageLayerId:7 },
+  { year:'2007', footprintLayerId:2, imageLayerId:3 }
+];
 const RDCK_ADDR = 'https://gis.rdck.bc.ca/server/rest/services/RDCK_Public_Web_Map_MIL/MapServer/0';
 const RDKB_PROPERTY = 'https://mapping.rdkb.com/server/rest/services/Planning/Property_Search/MapServer/150';
 const RDKB_ADDRESS_TABLE = 'https://mapping.rdkb.com/server/rest/services/Planning/BaseLayersExternal/FeatureServer/260';
@@ -1217,6 +1231,11 @@ L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/
 
 const mainOverlays = createOverlaySet(map);
 syncOverlaySet(mainOverlays);
+const mainRDCKImageryController = createRDCKImageryController(map);
+map.on('moveend', () => {
+  const toggle = document.getElementById('cfgLayerRDCKImagery');
+  if (toggle && toggle.checked) mainRDCKImageryController.refresh(toggle, true);
+});
 // Road labels overlay on top of satellite
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
   maxZoom: MAP_MAX_ZOOM,
@@ -1348,18 +1367,104 @@ function ensureMapPanes(targetMap) {
   }
 }
 
-function createRDCKImageryLayer(targetMap, opacity = 0.92) {
+const rdckImageryCoverageCache = new Map();
+
+function rdckImageryCacheKey(latlng) {
+  return `${latlng.lat.toFixed(4)},${latlng.lng.toFixed(4)}`;
+}
+
+async function rdckImageryFootprintContains(yearDef, latlng) {
+  const url = `${RDCK_IMAGERY}/${yearDef.footprintLayerId}/query?geometry=${latlng.lng},${latlng.lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=OBJECTID&returnGeometry=false&f=json&resultRecordCount=1`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`RDCK imagery footprint HTTP ${resp.status}`);
+  const data = await resp.json();
+  return Boolean(data.features && data.features.length);
+}
+
+async function findRDCKImageryYear(latlng) {
+  const key = rdckImageryCacheKey(latlng);
+  if (rdckImageryCoverageCache.has(key)) return rdckImageryCoverageCache.get(key);
+
+  for (const yearDef of RDCK_IMAGERY_YEARS) {
+    if (await rdckImageryFootprintContains(yearDef, latlng)) {
+      rdckImageryCoverageCache.set(key, yearDef);
+      return yearDef;
+    }
+  }
+
+  rdckImageryCoverageCache.set(key, null);
+  return null;
+}
+
+function createRDCKImageryLayer(targetMap, yearDef, opacity = 0.92) {
   if (!targetMap || !window.L || !L.esri) return null;
   ensureMapPanes(targetMap);
   return L.esri.dynamicMapLayer({
     url: RDCK_IMAGERY,
-    layers: RDCK_IMAGERY_2025_LAYER_IDS,
+    layers: [yearDef.imageLayerId],
     opacity,
     format: 'png32',
     transparent: true,
     maxZoom: MAP_MAX_ZOOM,
     pane: 'rdckImageryPane'
   });
+}
+
+function createRDCKImageryController(targetMap) {
+  let enabled = false;
+  let activeLayer = null;
+  let activeYear = null;
+  let requestId = 0;
+
+  const removeLayer = () => {
+    if (activeLayer && targetMap.hasLayer(activeLayer)) targetMap.removeLayer(activeLayer);
+    activeLayer = null;
+    activeYear = null;
+  };
+
+  const refresh = async (toggleEl, quiet = false) => {
+    if (!enabled) return;
+    const currentRequest = ++requestId;
+    try {
+      const yearDef = await findRDCKImageryYear(targetMap.getCenter());
+      if (currentRequest !== requestId || !enabled) return;
+      if (!yearDef) {
+        removeLayer();
+        enabled = false;
+        CONFIG.layerRDCKImagery = false;
+        if (toggleEl) toggleEl.checked = false;
+        if (!quiet) console.warn('No RDCK imagery coverage here; keeping Esri imagery visible.');
+        return;
+      }
+      if (activeLayer && activeYear === yearDef.year && targetMap.hasLayer(activeLayer)) return;
+      removeLayer();
+      activeLayer = createRDCKImageryLayer(targetMap, yearDef);
+      if (!activeLayer) throw new Error('RDCK imagery layer unavailable');
+      activeLayer.addTo(targetMap);
+      activeYear = yearDef.year;
+      if (!quiet) console.log(`RDCK imagery ${yearDef.year} loaded for this area`);
+    } catch (err) {
+      if (currentRequest !== requestId) return;
+      removeLayer();
+      enabled = false;
+      CONFIG.layerRDCKImagery = false;
+      if (toggleEl) toggleEl.checked = false;
+      console.warn(`RDCK imagery unavailable: ${err.message}`);
+    }
+  };
+
+  return {
+    setEnabled(nextEnabled, toggleEl) {
+      enabled = nextEnabled;
+      if (!enabled) {
+        requestId++;
+        removeLayer();
+        return;
+      }
+      refresh(toggleEl, false);
+    },
+    refresh
+  };
 }
 
 function normalizeText(v) {
@@ -1583,7 +1688,6 @@ async function resolveAddress(query, hints = {}) {
 
 function createOverlaySet(targetMap) {
   return {
-    rdckImagery: createRDCKImageryLayer(targetMap),
     parcels: L.tileLayer.wms(BC_WFS, {
       layers: 'pub:WHSE_CADASTRE.PMBC_PARCEL_FABRIC_POLY_SVW',
       format: 'image/png',
@@ -1622,7 +1726,7 @@ function createOverlaySet(targetMap) {
 
 function syncOverlaySet(layerSet, targetMap = map) {
   if (!layerSet || !targetMap) return;
-  [[CONFIG.layerRDCKImagery, layerSet.rdckImagery], [CONFIG.layerParcels, layerSet.parcels], [CONFIG.layerRDCK, layerSet.rdck], [CONFIG.layerRDKB, layerSet.rdkb]].forEach(([enabled, layer]) => {
+  [[CONFIG.layerParcels, layerSet.parcels], [CONFIG.layerRDCK, layerSet.rdck], [CONFIG.layerRDKB, layerSet.rdkb]].forEach(([enabled, layer]) => {
     if (!layer) return;
     if (enabled && !targetMap.hasLayer(layer)) layer.addTo(targetMap);
     if (!enabled && targetMap.hasLayer(layer)) targetMap.removeLayer(layer);
@@ -2128,6 +2232,7 @@ updateStats();
 
 // ── Settings ──
 let lookupOverlays = null;
+let lookupRDCKImageryController = null;
 const settingsBtn = document.getElementById('settingsBtn');
 const settingsPanel = document.getElementById('settingsPanel');
 const settingsCloseBtn = document.getElementById('settingsCloseBtn');
@@ -2144,6 +2249,8 @@ function applySettingsFromUI() {
   CONFIG.layerRDKB = document.getElementById('cfgLayerRDKB').checked;
   syncOverlaySet(mainOverlays, map);
   if (lookupOverlays && lookupMap) syncOverlaySet(lookupOverlays, lookupMap);
+  mainRDCKImageryController.setEnabled(CONFIG.layerRDCKImagery, document.getElementById('cfgLayerRDCKImagery'));
+  if (lookupRDCKImageryController) lookupRDCKImageryController.setEnabled(CONFIG.layerRDCKImagery, document.getElementById('cfgLayerRDCKImagery'));
 }
 
 function toggleSettingsPanel(force) {
@@ -2195,6 +2302,11 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
 function initLookupMap() {
   lookupMap = L.map('lookupMap', { zoomControl: true, maxZoom: MAP_MAX_ZOOM }).setView([49.28, -117.65], 11);
   ensureMapPanes(lookupMap);
+  lookupRDCKImageryController = createRDCKImageryController(lookupMap);
+  lookupMap.on('moveend', () => {
+    const toggle = document.getElementById('cfgLayerRDCKImagery');
+    if (toggle && toggle.checked) lookupRDCKImageryController.refresh(toggle, true);
+  });
   // Satellite
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     attribution: '&copy; Esri, Maxar, Earthstar Geographics',
@@ -2214,6 +2326,7 @@ function initLookupMap() {
   }).addTo(lookupMap);
   lookupOverlays = createOverlaySet(lookupMap);
   syncOverlaySet(lookupOverlays, lookupMap);
+  if (CONFIG.layerRDCKImagery) lookupRDCKImageryController.setEnabled(true, document.getElementById('cfgLayerRDCKImagery'));
   lookupMapInitialized = true;
 }
 

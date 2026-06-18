@@ -191,7 +191,7 @@
     <div class="psec">
       <h3>Map Layers</h3>
       <div class="ltog"><input type="checkbox" id="mSat" checked><div class="ldot" style="background:#2563EB"></div><span>Satellite Imagery</span></div>
-      <div class="ltog"><input type="checkbox" id="mRDCKImagery"><div class="ldot" style="background:#00A1E4"></div><span>RDCK Imagery 2025</span></div>
+      <div class="ltog"><input type="checkbox" id="mRDCKImagery"><div class="ldot" style="background:#00A1E4"></div><span>RDCK Imagery (auto)</span></div>
       <div class="ltog"><input type="checkbox" id="mRoads" checked><div class="ldot" style="background:#666"></div><span>Road Labels</span></div>
       <div class="ltog"><input type="checkbox" id="mParcelsWMS" checked><div class="ldot" style="background:#FF6200"></div><span>ParcelMap BC (WMS)</span></div>
       <div class="ltog"><input type="checkbox" id="mRDCK"><div class="ldot" style="background:#4D148C"></div><span>RDCK Public Map Service</span></div>
@@ -251,7 +251,7 @@
     <div class="psec">
       <h3>Map Layers</h3>
       <div class="ltog"><input type="checkbox" id="lSat" checked><div class="ldot" style="background:#2563EB"></div><span>Satellite Imagery</span></div>
-      <div class="ltog"><input type="checkbox" id="lRDCKImagery"><div class="ldot" style="background:#00A1E4"></div><span>RDCK Imagery 2025</span></div>
+      <div class="ltog"><input type="checkbox" id="lRDCKImagery"><div class="ldot" style="background:#00A1E4"></div><span>RDCK Imagery (auto)</span></div>
       <div class="ltog"><input type="checkbox" id="lRoads" checked><div class="ldot" style="background:#666"></div><span>Road Labels</span></div>
       <div class="ltog"><input type="checkbox" id="lParcelsWMS"><div class="ldot" style="background:#FF6200"></div><span>ParcelMap BC (WMS)</span></div>
       <div class="ltog"><input type="checkbox" id="lRDCK"><div class="ldot" style="background:#4D148C"></div><span>RDCK Public Map Service</span></div>
@@ -345,7 +345,21 @@
 // ══════════════════════════════════════
 const RDCK_BASE = 'https://gis.rdck.bc.ca/server/rest/services/RDCK_Public_Web_Map_MIL/MapServer';
 const RDCK_IMAGERY = 'https://gis.rdck.bc.ca/server/rest/services/RDCK_Imagery_Collection_V5/MapServer';
-const RDCK_IMAGERY_2025_LAYER_IDS = [95];
+const RDCK_IMAGERY_YEARS = [
+  { year:'2025', footprintLayerId:94, imageLayerId:95 },
+  { year:'2022', footprintLayerId:76, imageLayerId:77 },
+  { year:'2021', footprintLayerId:80, imageLayerId:81 },
+  { year:'2020 Enhancement', footprintLayerId:90, imageLayerId:91 },
+  { year:'2020', footprintLayerId:72, imageLayerId:73 },
+  { year:'2018', footprintLayerId:68, imageLayerId:69 },
+  { year:'2017', footprintLayerId:64, imageLayerId:65 },
+  { year:'2016', footprintLayerId:60, imageLayerId:61 },
+  { year:'2013', footprintLayerId:56, imageLayerId:57 },
+  { year:'2012', footprintLayerId:14, imageLayerId:15 },
+  { year:'2011', footprintLayerId:10, imageLayerId:11 },
+  { year:'2010', footprintLayerId:6, imageLayerId:7 },
+  { year:'2007', footprintLayerId:2, imageLayerId:3 }
+];
 const RDCK_ADDR = RDCK_BASE + '/0';   // Address Points
 const RDCK_CAD  = RDCK_BASE + '/8';   // Cadastre
 const RDKB_PROPERTY_ROOT = 'https://mapping.rdkb.com/server/rest/services/Planning/Property_Search/MapServer';
@@ -500,18 +514,113 @@ function ensureMapPanes(targetMap) {
   }
 }
 
-function createRDCKImageryLayer(targetMap, opacity = 0.92) {
+const rdckImageryCoverageCache = new Map();
+
+function rdckImageryCacheKey(latlng) {
+  return `${latlng.lat.toFixed(4)},${latlng.lng.toFixed(4)}`;
+}
+
+async function rdckImageryFootprintContains(yearDef, latlng) {
+  const url = `${RDCK_IMAGERY}/${yearDef.footprintLayerId}/query?geometry=${latlng.lng},${latlng.lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=OBJECTID&returnGeometry=false&f=json&resultRecordCount=1`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`RDCK imagery footprint HTTP ${resp.status}`);
+  const data = await resp.json();
+  return Boolean(data.features && data.features.length);
+}
+
+async function findRDCKImageryYear(latlng) {
+  const key = rdckImageryCacheKey(latlng);
+  if (rdckImageryCoverageCache.has(key)) return rdckImageryCoverageCache.get(key);
+
+  for (const yearDef of RDCK_IMAGERY_YEARS) {
+    if (await rdckImageryFootprintContains(yearDef, latlng)) {
+      rdckImageryCoverageCache.set(key, yearDef);
+      return yearDef;
+    }
+  }
+
+  rdckImageryCoverageCache.set(key, null);
+  return null;
+}
+
+function createRDCKImageryLayer(targetMap, yearDef, opacity = 0.92) {
   if (!targetMap || !window.L || !L.esri) return null;
   ensureMapPanes(targetMap);
   return L.esri.dynamicMapLayer({
     url: RDCK_IMAGERY,
-    layers: RDCK_IMAGERY_2025_LAYER_IDS,
+    layers: [yearDef.imageLayerId],
     opacity,
     format: 'png32',
     transparent: true,
     maxZoom: MAP_MAX_ZOOM,
     pane: 'rdckImageryPane'
   });
+}
+
+function createRDCKImageryController(targetMap) {
+  let enabled = false;
+  let activeLayer = null;
+  let activeYear = null;
+  let requestId = 0;
+
+  const removeLayer = () => {
+    if (activeLayer && targetMap.hasLayer(activeLayer)) targetMap.removeLayer(activeLayer);
+    activeLayer = null;
+    activeYear = null;
+  };
+
+  const refresh = async (toggleEl, quiet = false) => {
+    if (!enabled) return;
+    const currentRequest = ++requestId;
+    try {
+      const yearDef = await findRDCKImageryYear(targetMap.getCenter());
+      if (currentRequest !== requestId || !enabled) return;
+      if (!yearDef) {
+        removeLayer();
+        enabled = false;
+        if (toggleEl) toggleEl.checked = false;
+        if (!quiet) toast('No RDCK imagery coverage here; keeping Esri imagery visible.', 3500);
+        return;
+      }
+      if (activeLayer && activeYear === yearDef.year && targetMap.hasLayer(activeLayer)) return;
+      removeLayer();
+      activeLayer = createRDCKImageryLayer(targetMap, yearDef);
+      if (!activeLayer) throw new Error('RDCK imagery layer unavailable');
+      activeLayer.addTo(targetMap);
+      activeYear = yearDef.year;
+      if (!quiet) toast(`RDCK imagery ${yearDef.year} loaded for this area`, 3000);
+    } catch (err) {
+      if (currentRequest !== requestId) return;
+      removeLayer();
+      enabled = false;
+      if (toggleEl) toggleEl.checked = false;
+      toast(`RDCK imagery unavailable: ${err.message}`, 3500);
+    }
+  };
+
+  return {
+    setEnabled(nextEnabled, toggleEl) {
+      enabled = nextEnabled;
+      if (!enabled) {
+        requestId++;
+        removeLayer();
+        return;
+      }
+      refresh(toggleEl, false);
+    },
+    refresh
+  };
+}
+
+function bindRDCKImageryToggle(id, targetMap) {
+  const el = document.getElementById(id);
+  if (!el || !targetMap) return null;
+  const controller = createRDCKImageryController(targetMap);
+  el.addEventListener('change', e => controller.setEnabled(e.target.checked, el));
+  targetMap.on('moveend', () => {
+    if (el.checked) controller.refresh(el, true);
+  });
+  return controller;
 }
 
 function makeLayerRows(rows) {
@@ -608,7 +717,6 @@ function makeAddressDisplay(parts = {}) {
 const map = L.map('map', { updateWhenIdle:true, preferCanvas:true, maxZoom:MAP_MAX_ZOOM }).setView(CENTER, MAP_DEFAULT_ZOOM);
 ensureMapPanes(map);
 const mainSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:MAP_MAX_ZOOM, maxNativeZoom:TILE_NATIVE_MAX_ZOOM, attribution:'Esri', updateWhenIdle:true, keepBuffer:1}).addTo(map);
-const mainRDCKImagery = createRDCKImageryLayer(map);
 const mainRoadTransport = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {maxZoom:MAP_MAX_ZOOM, maxNativeZoom:TILE_NATIVE_MAX_ZOOM, opacity:.7, updateWhenIdle:true, keepBuffer:1, pane:'mapLabelPane'});
 const mainRoadPlaces = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {maxZoom:MAP_MAX_ZOOM, maxNativeZoom:TILE_NATIVE_MAX_ZOOM, updateWhenIdle:true, keepBuffer:1, pane:'mapLabelPane'});
 const mainRoads = L.layerGroup([mainRoadTransport, mainRoadPlaces]).addTo(map);
@@ -1179,7 +1287,7 @@ map.on('click', async e => {
   }
 });
 bindMainLayerToggle('mSat', mainSat, 'Satellite layer unavailable');
-bindMainLayerToggle('mRDCKImagery', mainRDCKImagery, 'RDCK 2025 imagery unavailable');
+bindRDCKImageryToggle('mRDCKImagery', map);
 bindMainLayerToggle('mRoads', mainRoads, 'Road labels unavailable');
 bindMainLayerToggle('mParcelsWMS', mainParcelsWMS, 'ParcelMap BC layer unavailable');
 bindMainLayerToggle('mRDCK', ensureMainRDCKLayer, 'RDCK layer unavailable');
@@ -2891,7 +2999,7 @@ async function queryParcelAtPoint(lat, lng) {
 // ══════════════════════════════════════
 // TAB 2: MAP EXPLORER
 // ══════════════════════════════════════
-let expMap, expSat, expRDCKImagery, expRoads, expParcelsWMS, expRDCK, expRDKBProperty, expRDKBParcels;
+let expMap, expSat, expRoads, expParcelsWMS, expRDCK, expRDKBProperty, expRDKBParcels;
 
 function renderInfoSection(title, rows) {
   return `<div style="margin-bottom:10px"><div style="font-weight:700;color:var(--fdx-purple);margin-bottom:4px">${esc(title)}</div>${rows.map(([l,v])=>`<div class="rr"><span class="rl">${esc(l)}</span><span class="rv">${esc(String(v||'—'))}</span></div>`).join('')}</div>`;
@@ -3072,7 +3180,6 @@ function initExpMap() {
   expMap = L.map('expMap', { preferCanvas:true, maxZoom:MAP_MAX_ZOOM }).setView(CENTER, MAP_DEFAULT_ZOOM);
   ensureMapPanes(expMap);
   expSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:MAP_MAX_ZOOM,maxNativeZoom:TILE_NATIVE_MAX_ZOOM}).addTo(expMap);
-  expRDCKImagery = createRDCKImageryLayer(expMap);
   expRoads = L.layerGroup([
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:MAP_MAX_ZOOM,maxNativeZoom:TILE_NATIVE_MAX_ZOOM,opacity:.7,pane:'mapLabelPane'}),
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:MAP_MAX_ZOOM,maxNativeZoom:TILE_NATIVE_MAX_ZOOM,pane:'mapLabelPane'})
@@ -3100,10 +3207,7 @@ function initExpMap() {
   }
 
   document.getElementById('lSat').addEventListener('change',e=>{e.target.checked?expSat.addTo(expMap):expMap.removeLayer(expSat)});
-  document.getElementById('lRDCKImagery').addEventListener('change',e=>{
-    if(!expRDCKImagery){toast('RDCK 2025 imagery unavailable');e.target.checked=false;return}
-    e.target.checked?expRDCKImagery.addTo(expMap):expMap.removeLayer(expRDCKImagery);
-  });
+  bindRDCKImageryToggle('lRDCKImagery', expMap);
   document.getElementById('lRoads').addEventListener('change',e=>{e.target.checked?expRoads.addTo(expMap):expMap.removeLayer(expRoads)});
   document.getElementById('lParcelsWMS').addEventListener('change',e=>{e.target.checked?expParcelsWMS.addTo(expMap):expMap.removeLayer(expParcelsWMS)});
   document.getElementById('lRDCK').addEventListener('change',e=>{
