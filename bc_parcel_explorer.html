@@ -330,10 +330,11 @@
 
 <!-- ═══ RIGHT-CLICK CONTEXT MENU ═══ -->
 <div class="ctx" id="mapCtx">
-  <div class="ctx-hdr" id="mapCtxCoords">49.3267, -117.6593</div>
-  <div class="ctx-item" id="ctxCopyDD"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>Copy Coordinates (DD)</div>
-  <div class="ctx-item" id="ctxCopyDMS"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>Copy as DMS</div>
-  <div class="ctx-sep"></div>
+    <div class="ctx-hdr" id="mapCtxCoords">49.3267, -117.6593</div>
+    <div class="ctx-item" id="ctxCopyDD"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>Copy Coordinates (DD)</div>
+    <div class="ctx-item" id="ctxCopyDMS"><svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>Copy as DMS</div>
+    <div class="ctx-item" id="ctxDropCoordPin"><svg viewBox="0 0 24 24"><path d="M11 2h2v4h-2V2zm0 16h2v4h-2v-4zM2 11h4v2H2v-2zm16 0h4v2h-4v-2zm-6-3a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm0 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4z"/></svg>Drop Coord Pin</div>
+    <div class="ctx-sep"></div>
   <div class="ctx-item orange" id="ctxLookupAddr"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>Lookup Address Here</div>
   <div class="ctx-item" id="ctxQueryParcel"><svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>Query Parcel (WFS)</div>
   <div class="ctx-item" id="ctxReverseGeo"><svg viewBox="0 0 24 24"><path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3A8.994 8.994 0 0013 3.06V1h-2v2.06A8.994 8.994 0 003.06 11H1v2h2.06A8.994 8.994 0 0011 20.94V23h2v-2.06A8.994 8.994 0 0020.94 13H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>Reverse Coordinate Lookup</div>
@@ -959,8 +960,10 @@ function ensureMainRDKBAddressPoints() {
 
 const PIN_A = L.divIcon({className:'',html:`<svg width="30" height="42" viewBox="0 0 30 42"><path d="M15 0C6.7 0 0 6.7 0 15c0 11.25 15 27 15 27s15-15.75 15-27C30 6.7 23.3 0 15 0z" fill="#4D148C"/><circle cx="15" cy="15" r="7" fill="#FF6200"/><circle cx="15" cy="15" r="3.5" fill="#fff"/></svg>`,iconSize:[30,42],iconAnchor:[15,42],popupAnchor:[0,-42]});
 const PIN_B = L.divIcon({className:'',html:`<svg width="30" height="42" viewBox="0 0 30 42"><path d="M15 0C6.7 0 0 6.7 0 15c0 11.25 15 27 15 27s15-15.75 15-27C30 6.7 23.3 0 15 0z" fill="#FF6200"/><circle cx="15" cy="15" r="7" fill="#4D148C"/><circle cx="15" cy="15" r="3.5" fill="#fff"/></svg>`,iconSize:[30,42],iconAnchor:[15,42],popupAnchor:[0,-42]});
+const PIN_COORD = L.divIcon({className:'',html:`<svg width="34" height="34" viewBox="0 0 34 34"><circle cx="17" cy="17" r="10" fill="#005A70" fill-opacity=".92" stroke="#fff" stroke-width="3"/><path d="M17 2v8M17 24v8M2 17h8M24 17h8" stroke="#FF6200" stroke-width="3" stroke-linecap="round"/><circle cx="17" cy="17" r="3.5" fill="#fff"/></svg>`,iconSize:[34,34],iconAnchor:[17,17],popupAnchor:[0,-18]});
 
 let mapMarkers = [], mapPolys = [];
+let coordPinMarker = null;
 let selectedAddressState = null;
 let selectedAddressGeneration = 0;
 function clearMapOverlays() { mapMarkers.forEach(m=>map.removeLayer(m)); mapMarkers=[]; mapPolys.forEach(p=>map.removeLayer(p)); mapPolys=[]; }
@@ -1354,6 +1357,20 @@ bindMainLayerToggle('mRDKBAddr', ensureMainRDKBAddressPoints, 'RDKB address poin
 let ctxLL = null;
 const ctxMenu = document.getElementById('mapCtx');
 
+function formatDD(lat, lon) {
+  return `${lat.toFixed(7)}, ${lon.toFixed(7)}`;
+}
+
+function dropCoordinatePin(lat, lon) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  const coords = formatDD(lat, lon);
+  if (coordPinMarker) map.removeLayer(coordPinMarker);
+  coordPinMarker = L.marker([lat, lon], { icon: PIN_COORD, zIndexOffset: 1200 }).addTo(map)
+    .bindPopup(`<div style="font-family:var(--fdx-font);font-size:12px"><strong style="color:#005A70">Exact coordinate pin</strong><br>${esc(coords)}</div>`)
+    .openPopup();
+  return coordPinMarker;
+}
+
 map.on('contextmenu', e => {
   e.originalEvent.preventDefault();
   ctxLL = e.latlng;
@@ -1376,9 +1393,18 @@ ctxMenu.addEventListener('click', e => e.stopPropagation());
 // Copy DD
 document.getElementById('ctxCopyDD').addEventListener('click', async () => {
   if (!ctxLL) return;
-  const s = `${ctxLL.lat.toFixed(7)}, ${ctxLL.lng.toFixed(7)}`;
+  const s = formatDD(ctxLL.lat, ctxLL.lng);
+  dropCoordinatePin(ctxLL.lat, ctxLL.lng);
   const ok = await copyTextToClipboard(s);
-  toast(ok ? `Copied: ${s}` : 'Copy failed');
+  toast(ok ? `Copied and pinned: ${s}` : 'Copy failed');
+  ctxMenu.classList.remove('vis');
+});
+
+document.getElementById('ctxDropCoordPin').addEventListener('click', () => {
+  if (!ctxLL) return;
+  const s = formatDD(ctxLL.lat, ctxLL.lng);
+  dropCoordinatePin(ctxLL.lat, ctxLL.lng);
+  toast(`Pinned: ${s}`);
   ctxMenu.classList.remove('vis');
 });
 
