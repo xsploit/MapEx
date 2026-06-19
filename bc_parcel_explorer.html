@@ -2962,6 +2962,8 @@ function selectAddress(info) {
   selectedAddressGeneration += 1;
   clearMapOverlays();
   clearRDCKPopupState();
+  if (coordPinMarker) coordPinMarker.closePopup();
+  map.closePopup();
   document.getElementById('parcelCard').classList.remove('vis');
   selectedAddressState = info;
   syncResolverSearchFields(info);
@@ -3061,11 +3063,14 @@ async function queryCadastreAtPoint(lat, lon, selectionGeneration = selectedAddr
     const r = await fetch(url); const d = await r.json();
     if (!isCurrentAddressSelection(selectionGeneration)) return;
     if (!d.features || !d.features.length) { alog('No cadastre at point','warn'); return; }
-    const f = d.features[0]; const p = f.attributes;
-    if (!rdckCadastreFeatureMatchesSelection(f, selectionSnapshot)) {
+    const f = selectionSnapshot
+      ? d.features.find(feature => rdckCadastreFeatureMatchesSelection(feature, selectionSnapshot))
+      : d.features[0];
+    if (!f) {
       alog('Cadastre at point did not match selected address; skipped parcel details', 'warn');
       return;
     }
+    const p = f.attributes;
     const fields = [
       ['PID', p.PID], ['Site Address', p.Site_Address], ['Folio', p.Folio],
       ['Actual Use', p.Actual_Use], ['Community', p.City],
