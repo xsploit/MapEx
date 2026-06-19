@@ -1960,14 +1960,14 @@ function buildPopupPagesFromLocalRows(rows=[]) {
   });
 }
 
-function resolveLocalCadastreFallback(lat, lon, priority) {
+function resolveLocalCadastreFallback(lat, lon, priority, selection=null) {
   const sources = priority && Array.isArray(priority) ? priority.reduce((acc, s) => (acc[s] = true, acc), {}) : { rdck: true, rdkb: true };
   const candidates = getLocalAddressRowsAtPoint(lat, lon, {
     sources,
     maxDistanceMeters: Math.max(LOCAL_POINT_MATCH_MAX_METERS, 1200),
     maxResults: 6
   });
-  return candidates.find(r => r.pid) || null;
+  return candidates.find(r => r.pid && cadastreCandidateMatchesSelection(r, selection)) || null;
 }
 
 function buildAutocompleteCacheKey(mode, query, sources) {
@@ -2013,6 +2013,35 @@ function buildAutocompleteConflictMap(items=[]) {
     }
   });
   return map;
+}
+
+function normalizeFolioKey(v='') {
+  return String(v || '').replace(/[^0-9A-Z]/gi, '').toUpperCase();
+}
+
+function cadastreCandidateMatchesSelection(candidate={}, selection={}) {
+  if (!selection) return true;
+  const selectedAddress = buildAutocompleteConflictKey(selection);
+  const candidateAddress = buildAutocompleteConflictKey(candidate);
+  const selectedComm = normalizeAcText(selection.comm || selection.city || selection.City || '');
+  const candidateComm = normalizeAcText(candidate.comm || candidate.city || candidate.City || '');
+  if (selectedAddress && candidateAddress && selectedAddress === candidateAddress) {
+    return !selectedComm || !candidateComm || selectedComm === candidateComm;
+  }
+
+  const selectedFolio = normalizeFolioKey(selection.folio);
+  const candidateFolio = normalizeFolioKey(candidate.folio);
+  return Boolean(selectedFolio && candidateFolio && selectedFolio === candidateFolio);
+}
+
+function rdckCadastreFeatureMatchesSelection(feature, selection) {
+  const p = feature && feature.attributes ? feature.attributes : {};
+  return cadastreCandidateMatchesSelection({
+    address: p.Site_Address || [p.house_nbr, p.street].filter(Boolean).join(' '),
+    rawAddress: p.Site_Address || [p.house_nbr, p.street].filter(Boolean).join(' '),
+    comm: p.City || '',
+    folio: p.Folio || ''
+  }, selection);
 }
 
 function buildAutocompleteSelectionText(info={}) {
@@ -2979,10 +3008,11 @@ function syncResolverSearchFields(info={}) {
 async function queryCadastreAtPoint(lat, lon, selectionGeneration = selectedAddressGeneration) {
   try {
     const priority = getResolverSourcePriority();
+    const selectionSnapshot = selectedAddressState;
     try {
       await ensureLocalAutocompleteRows();
       if (!isCurrentAddressSelection(selectionGeneration)) return;
-      const local = resolveLocalCadastreFallback(lat, lon, priority);
+      const local = resolveLocalCadastreFallback(lat, lon, priority, selectionSnapshot);
       if (local) {
         const fields = [
           ['PID', local.pid],
@@ -3006,6 +3036,10 @@ async function queryCadastreAtPoint(lat, lon, selectionGeneration = selectedAddr
     if (!isCurrentAddressSelection(selectionGeneration)) return;
     if (!d.features || !d.features.length) { alog('No cadastre at point','warn'); return; }
     const f = d.features[0]; const p = f.attributes;
+    if (!rdckCadastreFeatureMatchesSelection(f, selectionSnapshot)) {
+      alog('Cadastre at point did not match selected address; skipped parcel details', 'warn');
+      return;
+    }
     const fields = [
       ['PID', p.PID], ['Site Address', p.Site_Address], ['Folio', p.Folio],
       ['Actual Use', p.Actual_Use], ['Community', p.City],
