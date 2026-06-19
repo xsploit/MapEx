@@ -1028,6 +1028,9 @@
       <h4>Map Overlays</h4>
       <label class="settings-check"><input type="checkbox" id="cfgLayerParcels"> <span>ParcelMap BC</span></label>
       <label class="settings-check"><input type="checkbox" id="cfgLayerRDCKImagery"> <span>RDCK Imagery (auto)</span></label>
+      <select id="cfgLayerRDCKImageryYear" style="width:100%;margin:4px 0 8px;height:30px;font-size:12px">
+        <option value="auto">Newest available</option>
+      </select>
       <label class="settings-check"><input type="checkbox" id="cfgLayerRDCK"> <span>RDCK address points</span></label>
       <label class="settings-check"><input type="checkbox" id="cfgLayerRDKB"> <span>RDKB address points</span></label>
       <div class="settings-note">These overlays stay off by default so the dashboard keeps the same feel and the maps stay light until you ask for more context.</div>
@@ -1234,7 +1237,8 @@ syncOverlaySet(mainOverlays);
 const mainRDCKImageryController = createRDCKImageryController(map);
 map.on('moveend', () => {
   const toggle = document.getElementById('cfgLayerRDCKImagery');
-  if (toggle && toggle.checked) mainRDCKImageryController.refresh(toggle, true);
+  const yearSelect = document.getElementById('cfgLayerRDCKImageryYear');
+  if (toggle && toggle.checked) mainRDCKImageryController.refresh(toggle, true, yearSelect);
 });
 // Road labels overlay on top of satellite
 L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
@@ -1368,17 +1372,22 @@ function ensureMapPanes(targetMap) {
 }
 
 const rdckImageryCoverageCache = new Map();
+const rdckImageryFootprintCache = new Map();
 
 function rdckImageryCacheKey(latlng) {
   return `${latlng.lat.toFixed(4)},${latlng.lng.toFixed(4)}`;
 }
 
 async function rdckImageryFootprintContains(yearDef, latlng) {
+  const key = `${yearDef.imageLayerId}:${rdckImageryCacheKey(latlng)}`;
+  if (rdckImageryFootprintCache.has(key)) return rdckImageryFootprintCache.get(key);
   const url = `${RDCK_IMAGERY}/${yearDef.footprintLayerId}/query?geometry=${latlng.lng},${latlng.lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=OBJECTID&returnGeometry=false&f=json&resultRecordCount=1`;
   const resp = await fetch(url);
   if (!resp.ok) throw new Error(`RDCK imagery footprint HTTP ${resp.status}`);
   const data = await resp.json();
-  return Boolean(data.features && data.features.length);
+  const covered = Boolean(data.features && data.features.length);
+  rdckImageryFootprintCache.set(key, covered);
+  return covered;
 }
 
 async function findRDCKImageryYear(latlng) {
@@ -1410,6 +1419,16 @@ function createRDCKImageryLayer(targetMap, yearDef, opacity = 0.92) {
   });
 }
 
+function populateRDCKImageryYearSelect(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const current = el.value || 'auto';
+  el.innerHTML = '<option value="auto">Newest available</option>' + RDCK_IMAGERY_YEARS
+    .map(yearDef => `<option value="${yearDef.imageLayerId}">Imagery ${yearDef.year}</option>`)
+    .join('');
+  el.value = [...el.options].some(option => option.value === current) ? current : 'auto';
+}
+
 function createRDCKImageryController(targetMap) {
   let enabled = false;
   let activeLayer = null;
@@ -1422,18 +1441,29 @@ function createRDCKImageryController(targetMap) {
     activeYear = null;
   };
 
-  const refresh = async (toggleEl, quiet = false) => {
+  const refresh = async (toggleEl, quiet = false, yearSelectEl = null) => {
     if (!enabled) return;
     const currentRequest = ++requestId;
     try {
-      const yearDef = await findRDCKImageryYear(targetMap.getCenter());
+      const selectedValue = yearSelectEl ? yearSelectEl.value : 'auto';
+      let yearDef = null;
+      let noCoverageMsg = 'No RDCK imagery coverage here; keeping Esri imagery visible.';
+      if (selectedValue === 'auto') {
+        yearDef = await findRDCKImageryYear(targetMap.getCenter());
+      } else {
+        const selectedYear = RDCK_IMAGERY_YEARS.find(item => String(item.imageLayerId) === selectedValue);
+        if (selectedYear) {
+          noCoverageMsg = `No RDCK imagery ${selectedYear.year} coverage here; keeping Esri imagery visible.`;
+          if (await rdckImageryFootprintContains(selectedYear, targetMap.getCenter())) yearDef = selectedYear;
+        }
+      }
       if (currentRequest !== requestId || !enabled) return;
       if (!yearDef) {
         removeLayer();
         enabled = false;
         CONFIG.layerRDCKImagery = false;
         if (toggleEl) toggleEl.checked = false;
-        if (!quiet) console.warn('No RDCK imagery coverage here; keeping Esri imagery visible.');
+        if (!quiet) console.warn(noCoverageMsg);
         return;
       }
       if (activeLayer && activeYear === yearDef.year && targetMap.hasLayer(activeLayer)) return;
@@ -1454,14 +1484,14 @@ function createRDCKImageryController(targetMap) {
   };
 
   return {
-    setEnabled(nextEnabled, toggleEl) {
+    setEnabled(nextEnabled, toggleEl, yearSelectEl = null) {
       enabled = nextEnabled;
       if (!enabled) {
         requestId++;
         removeLayer();
         return;
       }
-      refresh(toggleEl, false);
+      refresh(toggleEl, false, yearSelectEl);
     },
     refresh
   };
@@ -2236,6 +2266,7 @@ let lookupRDCKImageryController = null;
 const settingsBtn = document.getElementById('settingsBtn');
 const settingsPanel = document.getElementById('settingsPanel');
 const settingsCloseBtn = document.getElementById('settingsCloseBtn');
+populateRDCKImageryYearSelect('cfgLayerRDCKImageryYear');
 
 function applySettingsFromUI() {
   CONFIG.resolverMode = document.getElementById('resolverMode').value;
@@ -2249,8 +2280,10 @@ function applySettingsFromUI() {
   CONFIG.layerRDKB = document.getElementById('cfgLayerRDKB').checked;
   syncOverlaySet(mainOverlays, map);
   if (lookupOverlays && lookupMap) syncOverlaySet(lookupOverlays, lookupMap);
-  mainRDCKImageryController.setEnabled(CONFIG.layerRDCKImagery, document.getElementById('cfgLayerRDCKImagery'));
-  if (lookupRDCKImageryController) lookupRDCKImageryController.setEnabled(CONFIG.layerRDCKImagery, document.getElementById('cfgLayerRDCKImagery'));
+  const rdckImageryToggle = document.getElementById('cfgLayerRDCKImagery');
+  const rdckImageryYear = document.getElementById('cfgLayerRDCKImageryYear');
+  mainRDCKImageryController.setEnabled(CONFIG.layerRDCKImagery, rdckImageryToggle, rdckImageryYear);
+  if (lookupRDCKImageryController) lookupRDCKImageryController.setEnabled(CONFIG.layerRDCKImagery, rdckImageryToggle, rdckImageryYear);
 }
 
 function toggleSettingsPanel(force) {
@@ -2268,6 +2301,10 @@ settingsPanel.addEventListener('click', e => e.stopPropagation());
 document.addEventListener('click', () => toggleSettingsPanel(false));
 ['resolverMode','cfgUseRDCK','cfgUseRDKB','cfgUseBC','cfgUseNominatim','cfgLayerParcels','cfgLayerRDCKImagery','cfgLayerRDCK','cfgLayerRDKB'].forEach(id => {
   document.getElementById(id).addEventListener('change', applySettingsFromUI);
+});
+document.getElementById('cfgLayerRDCKImageryYear').addEventListener('change', () => {
+  document.getElementById('cfgLayerRDCKImagery').checked = true;
+  applySettingsFromUI();
 });
 document.getElementById('clearGeoCacheBtn').addEventListener('click', () => {
   addressCache.clear();
@@ -2305,7 +2342,8 @@ function initLookupMap() {
   lookupRDCKImageryController = createRDCKImageryController(lookupMap);
   lookupMap.on('moveend', () => {
     const toggle = document.getElementById('cfgLayerRDCKImagery');
-    if (toggle && toggle.checked) lookupRDCKImageryController.refresh(toggle, true);
+    const yearSelect = document.getElementById('cfgLayerRDCKImageryYear');
+    if (toggle && toggle.checked) lookupRDCKImageryController.refresh(toggle, true, yearSelect);
   });
   // Satellite
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
@@ -2326,7 +2364,7 @@ function initLookupMap() {
   }).addTo(lookupMap);
   lookupOverlays = createOverlaySet(lookupMap);
   syncOverlaySet(lookupOverlays, lookupMap);
-  if (CONFIG.layerRDCKImagery) lookupRDCKImageryController.setEnabled(true, document.getElementById('cfgLayerRDCKImagery'));
+  if (CONFIG.layerRDCKImagery) lookupRDCKImageryController.setEnabled(true, document.getElementById('cfgLayerRDCKImagery'), document.getElementById('cfgLayerRDCKImageryYear'));
   lookupMapInitialized = true;
 }
 

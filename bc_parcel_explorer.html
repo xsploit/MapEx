@@ -192,6 +192,9 @@
       <h3>Map Layers</h3>
       <div class="ltog"><input type="checkbox" id="mSat" checked><div class="ldot" style="background:#2563EB"></div><span>Satellite Imagery</span></div>
       <div class="ltog"><input type="checkbox" id="mRDCKImagery"><div class="ldot" style="background:#00A1E4"></div><span>RDCK Imagery (auto)</span></div>
+      <select id="mRDCKImageryYear" style="width:100%;margin:4px 0 8px;height:30px;font-size:12px">
+        <option value="auto">Newest available</option>
+      </select>
       <div class="ltog"><input type="checkbox" id="mRoads" checked><div class="ldot" style="background:#666"></div><span>Road Labels</span></div>
       <div class="ltog"><input type="checkbox" id="mParcelsWMS" checked><div class="ldot" style="background:#FF6200"></div><span>ParcelMap BC (WMS)</span></div>
       <div class="ltog"><input type="checkbox" id="mRDCK"><div class="ldot" style="background:#4D148C"></div><span>RDCK Public Map Service</span></div>
@@ -252,6 +255,9 @@
       <h3>Map Layers</h3>
       <div class="ltog"><input type="checkbox" id="lSat" checked><div class="ldot" style="background:#2563EB"></div><span>Satellite Imagery</span></div>
       <div class="ltog"><input type="checkbox" id="lRDCKImagery"><div class="ldot" style="background:#00A1E4"></div><span>RDCK Imagery (auto)</span></div>
+      <select id="lRDCKImageryYear" style="width:100%;margin:4px 0 8px;height:30px;font-size:12px">
+        <option value="auto">Newest available</option>
+      </select>
       <div class="ltog"><input type="checkbox" id="lRoads" checked><div class="ldot" style="background:#666"></div><span>Road Labels</span></div>
       <div class="ltog"><input type="checkbox" id="lParcelsWMS"><div class="ldot" style="background:#FF6200"></div><span>ParcelMap BC (WMS)</span></div>
       <div class="ltog"><input type="checkbox" id="lRDCK"><div class="ldot" style="background:#4D148C"></div><span>RDCK Public Map Service</span></div>
@@ -515,17 +521,22 @@ function ensureMapPanes(targetMap) {
 }
 
 const rdckImageryCoverageCache = new Map();
+const rdckImageryFootprintCache = new Map();
 
 function rdckImageryCacheKey(latlng) {
   return `${latlng.lat.toFixed(4)},${latlng.lng.toFixed(4)}`;
 }
 
 async function rdckImageryFootprintContains(yearDef, latlng) {
+  const key = `${yearDef.imageLayerId}:${rdckImageryCacheKey(latlng)}`;
+  if (rdckImageryFootprintCache.has(key)) return rdckImageryFootprintCache.get(key);
   const url = `${RDCK_IMAGERY}/${yearDef.footprintLayerId}/query?geometry=${latlng.lng},${latlng.lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=OBJECTID&returnGeometry=false&f=json&resultRecordCount=1`;
   const resp = await fetch(url);
   if (!resp.ok) throw new Error(`RDCK imagery footprint HTTP ${resp.status}`);
   const data = await resp.json();
-  return Boolean(data.features && data.features.length);
+  const covered = Boolean(data.features && data.features.length);
+  rdckImageryFootprintCache.set(key, covered);
+  return covered;
 }
 
 async function findRDCKImageryYear(latlng) {
@@ -557,6 +568,16 @@ function createRDCKImageryLayer(targetMap, yearDef, opacity = 0.92) {
   });
 }
 
+function populateRDCKImageryYearSelect(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const current = el.value || 'auto';
+  el.innerHTML = '<option value="auto">Newest available</option>' + RDCK_IMAGERY_YEARS
+    .map(yearDef => `<option value="${yearDef.imageLayerId}">Imagery ${esc(yearDef.year)}</option>`)
+    .join('');
+  el.value = [...el.options].some(option => option.value === current) ? current : 'auto';
+}
+
 function createRDCKImageryController(targetMap) {
   let enabled = false;
   let activeLayer = null;
@@ -569,17 +590,28 @@ function createRDCKImageryController(targetMap) {
     activeYear = null;
   };
 
-  const refresh = async (toggleEl, quiet = false) => {
+  const refresh = async (toggleEl, quiet = false, yearSelectEl = null) => {
     if (!enabled) return;
     const currentRequest = ++requestId;
     try {
-      const yearDef = await findRDCKImageryYear(targetMap.getCenter());
+      const selectedValue = yearSelectEl ? yearSelectEl.value : 'auto';
+      let yearDef = null;
+      let noCoverageMsg = 'No RDCK imagery coverage here; keeping Esri imagery visible.';
+      if (selectedValue === 'auto') {
+        yearDef = await findRDCKImageryYear(targetMap.getCenter());
+      } else {
+        const selectedYear = RDCK_IMAGERY_YEARS.find(item => String(item.imageLayerId) === selectedValue);
+        if (selectedYear) {
+          noCoverageMsg = `No RDCK imagery ${selectedYear.year} coverage here; keeping Esri imagery visible.`;
+          if (await rdckImageryFootprintContains(selectedYear, targetMap.getCenter())) yearDef = selectedYear;
+        }
+      }
       if (currentRequest !== requestId || !enabled) return;
       if (!yearDef) {
         removeLayer();
         enabled = false;
         if (toggleEl) toggleEl.checked = false;
-        if (!quiet) toast('No RDCK imagery coverage here; keeping Esri imagery visible.', 3500);
+        if (!quiet) toast(noCoverageMsg, 3500);
         return;
       }
       if (activeLayer && activeYear === yearDef.year && targetMap.hasLayer(activeLayer)) return;
@@ -599,26 +631,34 @@ function createRDCKImageryController(targetMap) {
   };
 
   return {
-    setEnabled(nextEnabled, toggleEl) {
+    setEnabled(nextEnabled, toggleEl, yearSelectEl = null) {
       enabled = nextEnabled;
       if (!enabled) {
         requestId++;
         removeLayer();
         return;
       }
-      refresh(toggleEl, false);
+      refresh(toggleEl, false, yearSelectEl);
     },
     refresh
   };
 }
 
-function bindRDCKImageryToggle(id, targetMap) {
+function bindRDCKImageryToggle(id, targetMap, yearSelectId = null) {
   const el = document.getElementById(id);
   if (!el || !targetMap) return null;
+  const yearSelectEl = yearSelectId ? document.getElementById(yearSelectId) : null;
+  if (yearSelectEl) {
+    populateRDCKImageryYearSelect(yearSelectId);
+    yearSelectEl.addEventListener('change', () => {
+      if (!el.checked) el.checked = true;
+      controller.setEnabled(true, el, yearSelectEl);
+    });
+  }
   const controller = createRDCKImageryController(targetMap);
-  el.addEventListener('change', e => controller.setEnabled(e.target.checked, el));
+  el.addEventListener('change', e => controller.setEnabled(e.target.checked, el, yearSelectEl));
   targetMap.on('moveend', () => {
-    if (el.checked) controller.refresh(el, true);
+    if (el.checked) controller.refresh(el, true, yearSelectEl);
   });
   return controller;
 }
@@ -1287,7 +1327,7 @@ map.on('click', async e => {
   }
 });
 bindMainLayerToggle('mSat', mainSat, 'Satellite layer unavailable');
-bindRDCKImageryToggle('mRDCKImagery', map);
+bindRDCKImageryToggle('mRDCKImagery', map, 'mRDCKImageryYear');
 bindMainLayerToggle('mRoads', mainRoads, 'Road labels unavailable');
 bindMainLayerToggle('mParcelsWMS', mainParcelsWMS, 'ParcelMap BC layer unavailable');
 bindMainLayerToggle('mRDCK', ensureMainRDCKLayer, 'RDCK layer unavailable');
@@ -3207,7 +3247,7 @@ function initExpMap() {
   }
 
   document.getElementById('lSat').addEventListener('change',e=>{e.target.checked?expSat.addTo(expMap):expMap.removeLayer(expSat)});
-  bindRDCKImageryToggle('lRDCKImagery', expMap);
+  bindRDCKImageryToggle('lRDCKImagery', expMap, 'lRDCKImageryYear');
   document.getElementById('lRoads').addEventListener('change',e=>{e.target.checked?expRoads.addTo(expMap):expMap.removeLayer(expRoads)});
   document.getElementById('lParcelsWMS').addEventListener('change',e=>{e.target.checked?expParcelsWMS.addTo(expMap):expMap.removeLayer(expParcelsWMS)});
   document.getElementById('lRDCK').addEventListener('change',e=>{
