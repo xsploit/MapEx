@@ -1408,9 +1408,10 @@ async function findRDCKImageryYear(latlng) {
 function createRDCKImageryLayer(targetMap, yearDef, opacity = 0.92) {
   if (!targetMap || !window.L || !L.esri) return null;
   ensureMapPanes(targetMap);
+  const layerIds = yearDef.imageLayerIds || [yearDef.imageLayerId];
   return L.esri.dynamicMapLayer({
     url: RDCK_IMAGERY,
-    layers: [yearDef.imageLayerId],
+    layers: layerIds,
     opacity,
     format: 'png32',
     transparent: true,
@@ -1423,7 +1424,7 @@ function populateRDCKImageryYearSelect(id) {
   const el = document.getElementById(id);
   if (!el) return;
   const current = el.value || 'auto';
-  el.innerHTML = '<option value="auto">Newest available</option>' + RDCK_IMAGERY_YEARS
+  el.innerHTML = '<option value="auto">RDCK collection</option>' + RDCK_IMAGERY_YEARS
     .map(yearDef => `<option value="${yearDef.imageLayerId}">Imagery ${yearDef.year}</option>`)
     .join('');
   el.value = [...el.options].some(option => option.value === current) ? current : 'auto';
@@ -1449,7 +1450,13 @@ function createRDCKImageryController(targetMap) {
       let yearDef = null;
       let noCoverageMsg = 'No RDCK imagery coverage here; keeping Esri imagery visible.';
       if (selectedValue === 'auto') {
-        yearDef = await findRDCKImageryYear(targetMap.getCenter());
+        const coveredYear = await findRDCKImageryYear(targetMap.getCenter());
+        if (coveredYear) {
+          yearDef = {
+            year: 'Collection',
+            imageLayerIds: RDCK_IMAGERY_YEARS.map(item => item.imageLayerId)
+          };
+        }
       } else {
         const selectedYear = RDCK_IMAGERY_YEARS.find(item => String(item.imageLayerId) === selectedValue);
         if (selectedYear) {
