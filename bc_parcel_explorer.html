@@ -962,7 +962,9 @@ const PIN_B = L.divIcon({className:'',html:`<svg width="30" height="42" viewBox=
 
 let mapMarkers = [], mapPolys = [];
 let selectedAddressState = null;
+let selectedAddressGeneration = 0;
 function clearMapOverlays() { mapMarkers.forEach(m=>map.removeLayer(m)); mapMarkers=[]; mapPolys.forEach(p=>map.removeLayer(p)); mapPolys=[]; }
+function isCurrentAddressSelection(selectionGeneration) { return selectionGeneration === selectedAddressGeneration; }
 function calcDistSq(lat1, lon1, lat2, lon2) {
   const dLat = lat1 - lat2;
   const dLon = lon1 - lon2;
@@ -1002,6 +1004,12 @@ function clearRDCKPopupHighlight() {
     map.removeLayer(rdckPopupHighlight);
     rdckPopupHighlight = null;
   }
+}
+
+function clearRDCKPopupState() {
+  if (rdckPopup) map.closePopup(rdckPopup);
+  rdckPopupState = null;
+  clearRDCKPopupHighlight();
 }
 
 function drawRDCKPopupHighlight(page) {
@@ -1070,9 +1078,7 @@ function renderRDCKPopup() {
 }
 
 window.closeRDCKPopup = function() {
-  map.closePopup(rdckPopup);
-  rdckPopupState = null;
-  clearRDCKPopupHighlight();
+  clearRDCKPopupState();
 };
 
 window.cycleRDCKPopup = function(delta) {
@@ -2898,7 +2904,9 @@ document.getElementById('acBcGeoBtn').addEventListener('click', async () => {
 // SELECT ADDRESS — plot + show details
 // ══════════════════════════════════════
 function selectAddress(info) {
+  selectedAddressGeneration += 1;
   clearMapOverlays();
+  clearRDCKPopupState();
   document.getElementById('parcelCard').classList.remove('vis');
   selectedAddressState = info;
   syncResolverSearchFields(info);
@@ -2968,11 +2976,12 @@ function syncResolverSearchFields(info={}) {
 // ══════════════════════════════════════
 // RDCK CADASTRE QUERY (at lat/lon)
 // ══════════════════════════════════════
-async function queryCadastreAtPoint(lat, lon) {
+async function queryCadastreAtPoint(lat, lon, selectionGeneration = selectedAddressGeneration) {
   try {
     const priority = getResolverSourcePriority();
     try {
       await ensureLocalAutocompleteRows();
+      if (!isCurrentAddressSelection(selectionGeneration)) return;
       const local = resolveLocalCadastreFallback(lat, lon, priority);
       if (local) {
         const fields = [
@@ -2985,12 +2994,8 @@ async function queryCadastreAtPoint(lat, lon) {
           ['Latitude', Number.isFinite(local.lat) ? local.lat.toFixed(7) : '—'],
           ['Longitude', Number.isFinite(local.lon) ? local.lon.toFixed(7) : '—']
         ];
+        if (!isCurrentAddressSelection(selectionGeneration)) return;
         updateParcelCard('Cadastre Info (local cache)', fields);
-        if (Number.isFinite(local.lat) && Number.isFinite(local.lon)) {
-          const mk = L.marker([local.lat, local.lon], { icon: PIN_A }).addTo(map);
-          mapMarkers.push(mk);
-          map.setView([local.lat, local.lon], Math.max(map.getZoom(), 18), {animate:false});
-        }
         alog(`Cadastre resolved from local index for ${local.pid || local.folio || local.address || 'address'}`, 'ok');
         return;
       }
@@ -2998,6 +3003,7 @@ async function queryCadastreAtPoint(lat, lon) {
 
     const url = `${RDCK_CAD}/query?geometry=${lon},${lat}&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects&outFields=PID,Site_Address,Folio,Actual_Use,City,Lot_Size,Gen_Land_Gross,Gen_Impr_Gross,Legal_Long,Plan_Number&returnGeometry=true&outSR=4326&f=json`;
     const r = await fetch(url); const d = await r.json();
+    if (!isCurrentAddressSelection(selectionGeneration)) return;
     if (!d.features || !d.features.length) { alog('No cadastre at point','warn'); return; }
     const f = d.features[0]; const p = f.attributes;
     const fields = [
