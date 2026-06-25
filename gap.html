@@ -1193,7 +1193,7 @@ const CONFIG = {
 };
 
 const MAP_MAX_ZOOM = 23;
-const TILE_NATIVE_MAX_ZOOM = 19;
+const TILE_NATIVE_MAX_ZOOM = 18;
 const RDCK_IMAGERY = 'https://gis.rdck.bc.ca/server/rest/services/RDCK_Imagery_Collection_V5/MapServer';
 const RDCK_IMAGERY_YEARS = [
   { year:'2025', footprintLayerId:94, imageLayerId:95 },
@@ -1226,7 +1226,7 @@ let lastNominatim = 0;
 const map = L.map('map', { zoomControl: true, maxZoom: MAP_MAX_ZOOM }).setView([49.28, -117.65], 10);
 ensureMapPanes(map);
 // Satellite imagery (Esri World Imagery — free, no API key)
-L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
   attribution: '&copy; Esri, Maxar, Earthstar Geographics',
   maxZoom: MAP_MAX_ZOOM,
   maxNativeZoom: TILE_NATIVE_MAX_ZOOM
@@ -1241,13 +1241,13 @@ map.on('moveend', () => {
   if (toggle && toggle.checked) mainRDCKImageryController.refresh(toggle, true, yearSelect);
 });
 // Road labels overlay on top of satellite
-L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
+L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
   maxZoom: MAP_MAX_ZOOM,
   maxNativeZoom: TILE_NATIVE_MAX_ZOOM,
   opacity: 0.7,
   pane: 'mapLabelPane'
 }).addTo(map);
-L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
   maxZoom: MAP_MAX_ZOOM,
   maxNativeZoom: TILE_NATIVE_MAX_ZOOM,
   pane: 'mapLabelPane'
@@ -2374,18 +2374,18 @@ function initLookupMap() {
     if (toggle && toggle.checked) lookupRDCKImageryController.refresh(toggle, true, yearSelect);
   });
   // Satellite
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     attribution: '&copy; Esri, Maxar, Earthstar Geographics',
     maxZoom: MAP_MAX_ZOOM,
     maxNativeZoom: TILE_NATIVE_MAX_ZOOM
   }).addTo(lookupMap);
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
+  L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
     maxZoom: MAP_MAX_ZOOM,
     maxNativeZoom: TILE_NATIVE_MAX_ZOOM,
     opacity: 0.7,
     pane: 'mapLabelPane'
   }).addTo(lookupMap);
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+  L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
     maxZoom: MAP_MAX_ZOOM,
     maxNativeZoom: TILE_NATIVE_MAX_ZOOM,
     pane: 'mapLabelPane'

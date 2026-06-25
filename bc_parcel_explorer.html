@@ -396,7 +396,7 @@ const LOCAL_POINT_MATCH_MAX_RESULTS = 8;
 const LOCAL_LAYER_ROOT = 'data/layers';
 const MAP_DEFAULT_ZOOM = 14;
 const MAP_MAX_ZOOM = 23;
-const TILE_NATIVE_MAX_ZOOM = 19;
+const TILE_NATIVE_MAX_ZOOM = 18;
 const RDKB_LIVE_ENABLED = false;
 const RDKB_MAP_LAYERS_USE_LOCAL_CACHE = true;
 let rdkbRemoteBlocked = !RDKB_LIVE_ENABLED;
@@ -785,9 +785,9 @@ function makeAddressDisplay(parts = {}) {
 // ══════════════════════════════════════
 const map = L.map('map', { updateWhenIdle:true, preferCanvas:true, maxZoom:MAP_MAX_ZOOM }).setView(CENTER, MAP_DEFAULT_ZOOM);
 ensureMapPanes(map);
-const mainSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:MAP_MAX_ZOOM, maxNativeZoom:TILE_NATIVE_MAX_ZOOM, attribution:'Esri', updateWhenIdle:true, keepBuffer:1}).addTo(map);
-const mainRoadTransport = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {maxZoom:MAP_MAX_ZOOM, maxNativeZoom:TILE_NATIVE_MAX_ZOOM, opacity:.7, updateWhenIdle:true, keepBuffer:1, pane:'mapLabelPane'});
-const mainRoadPlaces = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {maxZoom:MAP_MAX_ZOOM, maxNativeZoom:TILE_NATIVE_MAX_ZOOM, updateWhenIdle:true, keepBuffer:1, pane:'mapLabelPane'});
+const mainSat = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom:MAP_MAX_ZOOM, maxNativeZoom:TILE_NATIVE_MAX_ZOOM, attribution:'Esri', updateWhenIdle:true, keepBuffer:1}).addTo(map);
+const mainRoadTransport = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {maxZoom:MAP_MAX_ZOOM, maxNativeZoom:TILE_NATIVE_MAX_ZOOM, opacity:.7, updateWhenIdle:true, keepBuffer:1, pane:'mapLabelPane'});
+const mainRoadPlaces = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {maxZoom:MAP_MAX_ZOOM, maxNativeZoom:TILE_NATIVE_MAX_ZOOM, updateWhenIdle:true, keepBuffer:1, pane:'mapLabelPane'});
 const mainRoads = L.layerGroup([mainRoadTransport, mainRoadPlaces]).addTo(map);
 
 const mainParcelsWMS = L.tileLayer.wms(BC_WFS, {
@@ -3318,10 +3318,10 @@ function initExpMap() {
   if (expMap) return;
   expMap = L.map('expMap', { preferCanvas:true, maxZoom:MAP_MAX_ZOOM }).setView(CENTER, MAP_DEFAULT_ZOOM);
   ensureMapPanes(expMap);
-  expSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:MAP_MAX_ZOOM,maxNativeZoom:TILE_NATIVE_MAX_ZOOM}).addTo(expMap);
+  expSat = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:MAP_MAX_ZOOM,maxNativeZoom:TILE_NATIVE_MAX_ZOOM}).addTo(expMap);
   expRoads = L.layerGroup([
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:MAP_MAX_ZOOM,maxNativeZoom:TILE_NATIVE_MAX_ZOOM,opacity:.7,pane:'mapLabelPane'}),
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:MAP_MAX_ZOOM,maxNativeZoom:TILE_NATIVE_MAX_ZOOM,pane:'mapLabelPane'})
+    L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:MAP_MAX_ZOOM,maxNativeZoom:TILE_NATIVE_MAX_ZOOM,opacity:.7,pane:'mapLabelPane'}),
+    L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:MAP_MAX_ZOOM,maxNativeZoom:TILE_NATIVE_MAX_ZOOM,pane:'mapLabelPane'})
   ]).addTo(expMap);
   expParcelsWMS = L.tileLayer.wms(BC_WFS,{layers:'pub:WHSE_CADASTRE.PMBC_PARCEL_FABRIC_POLY_SVW',format:'image/png',transparent:true,opacity:.5,maxZoom:MAP_MAX_ZOOM});
   try { expRDCK = L.esri.dynamicMapLayer({url:RDCK_BASE,opacity:1,maxZoom:MAP_MAX_ZOOM}); } catch(e){}
@@ -3405,8 +3405,8 @@ let cadMap, cadLayers=[];
 function initCadMap() {
   if(cadMap) return;
   cadMap = L.map('cadMap', { preferCanvas:true, maxZoom:MAP_MAX_ZOOM }).setView(CENTER, MAP_DEFAULT_ZOOM);
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:MAP_MAX_ZOOM,maxNativeZoom:TILE_NATIVE_MAX_ZOOM}).addTo(cadMap);
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:MAP_MAX_ZOOM,maxNativeZoom:TILE_NATIVE_MAX_ZOOM,opacity:.7}).addTo(cadMap);
+L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:MAP_MAX_ZOOM,maxNativeZoom:TILE_NATIVE_MAX_ZOOM}).addTo(cadMap);
+L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:MAP_MAX_ZOOM,maxNativeZoom:TILE_NATIVE_MAX_ZOOM,opacity:.7}).addTo(cadMap);
   L.tileLayer.wms(BC_WFS,{layers:'pub:WHSE_CADASTRE.PMBC_PARCEL_FABRIC_POLY_SVW',format:'image/png',transparent:true,opacity:.4,maxZoom:MAP_MAX_ZOOM}).addTo(cadMap);
 }
 
