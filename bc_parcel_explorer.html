@@ -180,10 +180,10 @@
       <button class="btn-o" id="acSearchBtn">SEARCH ADDRESSES</button>
       <button class="btn-s" id="acBcGeoBtn">FALLBACK: BC GEOCODER</button>
       <div class="fld" style="margin-top:10px">
-        <label>Reverse Coordinate Lookup</label>
+        <label>Exact Coordinate Pin</label>
         <div class="fld-row">
           <input type="text" id="coordLookupInput" placeholder="49.0968685, -117.7083066">
-          <button class="btn-s" id="coordLookupBtn" style="width:96px">LOOKUP</button>
+          <button class="btn-s" id="coordLookupBtn" style="width:96px">PIN</button>
         </div>
       </div>
     </div>
@@ -1656,11 +1656,11 @@ document.getElementById('ctxReverseGeo').addEventListener('click', async () => {
 document.getElementById('coordLookupBtn').addEventListener('click', async () => {
   const parsed = parseCoordinatePair(document.getElementById('coordLookupInput').value);
   if (!parsed) { toast('Enter coordinates as lat, lon'); return; }
-  showLov('mapLov');
-  try {
-    await reverseCoordinateLookup(parsed.lat, parsed.lon, { label: 'Coordinate lookup' });
-  } catch(e) { alog('Coordinate lookup failed: '+e.message, 'err'); }
-  finally { hideLov('mapLov'); }
+  const s = formatDD(parsed.lat, parsed.lon);
+  dropCoordinatePin(parsed.lat, parsed.lon);
+  map.setView([parsed.lat, parsed.lon], Math.max(map.getZoom(), 18), { animate:false });
+  toast(`Pinned exact coordinates: ${s}`);
+  alog(`Exact coordinate pin: ${s}`, 'ok');
 });
 document.getElementById('coordLookupInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('coordLookupBtn').click();
