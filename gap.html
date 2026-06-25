@@ -1390,19 +1390,35 @@ async function rdckImageryFootprintContains(yearDef, latlng) {
   return covered;
 }
 
-async function findRDCKImageryYear(latlng) {
+async function findRDCKImageryYears(latlng) {
   const key = rdckImageryCacheKey(latlng);
   if (rdckImageryCoverageCache.has(key)) return rdckImageryCoverageCache.get(key);
 
+  const coveredYears = [];
   for (const yearDef of RDCK_IMAGERY_YEARS) {
     if (await rdckImageryFootprintContains(yearDef, latlng)) {
-      rdckImageryCoverageCache.set(key, yearDef);
-      return yearDef;
+      coveredYears.push(yearDef);
     }
   }
 
-  rdckImageryCoverageCache.set(key, null);
-  return null;
+  rdckImageryCoverageCache.set(key, coveredYears);
+  return coveredYears;
+}
+
+async function findRDCKImageryYear(latlng) {
+  const coveredYears = await findRDCKImageryYears(latlng);
+  return coveredYears[0] || null;
+}
+
+function selectRDCKImageryFallback(coveredYears, selectedYear = null) {
+  if (!coveredYears || !coveredYears.length) return null;
+  if (!selectedYear) return coveredYears[0];
+  if (coveredYears.includes(selectedYear)) return selectedYear;
+  const selectedIndex = RDCK_IMAGERY_YEARS.indexOf(selectedYear);
+  const olderCovered = RDCK_IMAGERY_YEARS
+    .slice(Math.max(0, selectedIndex + 1))
+    .find(yearDef => coveredYears.includes(yearDef));
+  return olderCovered || coveredYears[0];
 }
 
 function createRDCKImageryLayer(targetMap, yearDef, opacity = 0.92) {
@@ -1449,19 +1465,18 @@ function createRDCKImageryController(targetMap) {
       const selectedValue = yearSelectEl ? yearSelectEl.value : 'auto';
       let yearDef = null;
       let noCoverageMsg = 'No RDCK imagery coverage here; keeping Esri imagery visible.';
+      const center = targetMap.getCenter();
+      const coveredYears = await findRDCKImageryYears(center);
+      let selectedYear = null;
+      let fallbackFromYear = null;
       if (selectedValue === 'auto') {
-        const coveredYear = await findRDCKImageryYear(targetMap.getCenter());
-        if (coveredYear) {
-          yearDef = {
-            year: 'Collection',
-            imageLayerIds: RDCK_IMAGERY_YEARS.map(item => item.imageLayerId)
-          };
-        }
+        yearDef = selectRDCKImageryFallback(coveredYears);
       } else {
-        const selectedYear = RDCK_IMAGERY_YEARS.find(item => String(item.imageLayerId) === selectedValue);
+        selectedYear = RDCK_IMAGERY_YEARS.find(item => String(item.imageLayerId) === selectedValue);
         if (selectedYear) {
+          yearDef = selectRDCKImageryFallback(coveredYears, selectedYear);
+          if (yearDef && yearDef !== selectedYear) fallbackFromYear = selectedYear.year;
           noCoverageMsg = `No RDCK imagery ${selectedYear.year} coverage here; keeping Esri imagery visible.`;
-          if (await rdckImageryFootprintContains(selectedYear, targetMap.getCenter())) yearDef = selectedYear;
         }
       }
       if (currentRequest !== requestId || !enabled) return;
@@ -1473,13 +1488,19 @@ function createRDCKImageryController(targetMap) {
         if (!quiet) console.warn(noCoverageMsg);
         return;
       }
-      if (activeLayer && activeYear === yearDef.year && targetMap.hasLayer(activeLayer)) return;
+      if (activeLayer && activeYear === yearDef.year && targetMap.hasLayer(activeLayer)) {
+        if (!quiet && fallbackFromYear) console.log(`No ${fallbackFromYear} coverage here; using ${yearDef.year}.`);
+        return;
+      }
       removeLayer();
       activeLayer = createRDCKImageryLayer(targetMap, yearDef);
       if (!activeLayer) throw new Error('RDCK imagery layer unavailable');
       activeLayer.addTo(targetMap);
       activeYear = yearDef.year;
-      if (!quiet) console.log(`RDCK imagery ${yearDef.year} loaded for this area`);
+      if (!quiet) {
+        const fallbackMsg = fallbackFromYear ? `No ${fallbackFromYear} coverage here; using ${yearDef.year}.` : `RDCK imagery ${yearDef.year} loaded for this area`;
+        console.log(fallbackMsg);
+      }
     } catch (err) {
       if (currentRequest !== requestId) return;
       removeLayer();
