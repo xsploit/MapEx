@@ -8,7 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..');
 const outDir = resolve(repoRoot, 'data');
 
-const RDCK_ADDR = 'https://gis.rdck.bc.ca/server/rest/services/RDCK_Public_Web_Map_MIL/MapServer/0';
+const RDCK_ADDR = 'https://maps.rdck.bc.ca/server2/rest/services/RDCK_Public_Map_Service_MIL/MapServer/20';
 const RDKB_ADDRESS_TABLE = 'https://mapping.rdkb.com/server/rest/services/Planning/BaseLayersExternal/FeatureServer/260';
 const RDKB_ADDRESS_POINTS = 'https://mapping.rdkb.com/server/rest/services/Planning/BaseLayersExternal/FeatureServer/261';
 const CHUNK_SIZE = 200;
