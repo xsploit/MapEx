@@ -15,14 +15,14 @@ const layerConfigs = {
     label: 'RDCK Address Points',
     sourceType: 'arcgis',
     transport: 'direct',
-    url: 'https://gis.rdck.bc.ca/server/rest/services/RDCK_Public_Web_Map_MIL/MapServer/0',
+    url: 'https://maps.rdck.bc.ca/server2/rest/services/RDCK_Public_Map_Service_MIL/MapServer/20',
     chunkSize: 500
   },
   'rdck-cadastre': {
     label: 'RDCK Cadastre - Property Lines',
     sourceType: 'arcgis',
     transport: 'direct',
-    url: 'https://gis.rdck.bc.ca/server/rest/services/RDCK_Public_Web_Map_MIL/MapServer/8',
+    url: 'https://maps.rdck.bc.ca/server2/rest/services/RDCK_Public_Map_Service_MIL/MapServer/25',
     chunkSize: 100
   },
   'rdkb-property-search': {
