@@ -350,7 +350,7 @@
 // ══════════════════════════════════════
 // CONSTANTS
 // ══════════════════════════════════════
-const RDCK_BASE = 'https://maps.rdck.bc.ca/server2/rest/services/RDCK_Public_Map_Service_MIL/MapServer';
+const RDCK_BASE = 'https://maps.rdck.bc.ca/server2/rest/services/RDCK_Public_Web_Map_Service_MIL/MapServer';
 const RDCK_IMAGERY = 'https://maps.rdck.bc.ca/server2/rest/services/RDCK_Imagery_Collection/MapServer';
 const RDCK_IMAGERY_YEARS = [
   { year:'2025', footprintLayerId:2, imageLayerId:3 },
@@ -3514,8 +3514,8 @@ function hideLov(id){document.getElementById(id).classList.remove('vis')}
 async function checkAPIs(){
   alog('Running health checks...','info');
   const checks=[
-    ['sRDCKAddr', `${RDCK_ADDR}/query?where=1%3D1&resultRecordCount=1&f=json`, d=>d.features&&d.features.length>0],
-    ['sRDCKCad',  `${RDCK_CAD}/query?where=1%3D1&resultRecordCount=1&f=json`, d=>d.features&&d.features.length>0],
+    ['sRDCKAddr', `${RDCK_ADDR}/query?where=1%3D1&resultRecordCount=1&outFields=OBJECTID&returnGeometry=false&f=json`, d=>d.features&&d.features.length>0],
+    ['sRDCKCad',  `${RDCK_CAD}/query?where=1%3D1&resultRecordCount=1&outFields=OBJECTID&returnGeometry=false&f=json`, d=>d.features&&d.features.length>0],
     ['sBCGeo',    `${BC_GEO}/addresses.json?addressString=Castlegar,BC&maxResults=1&outputSRS=4326`, d=>d.features&&d.features.length>0],
     ['sWMS',      `${BC_WFS}?service=WMS&version=1.1.1&request=GetCapabilities`, null],
   ];
