@@ -1,0 +1,14 @@
+{
+  "layers": {
+    "address_points": {
+      "feature_count": 31615,
+      "latest_edit_epoch_ms": 1793636172000
+    },
+    "cadastre": {
+      "feature_count": 50811,
+      "latest_edit_epoch_ms": 1793662670000
+    }
+  },
+  "note": "Advisory only: count and latest edit may miss changes; this does not refresh cached features.",
+  "source": "https://maps.rdck.bc.ca/server2/rest/services/RDCK_Public_Web_Map_Service_MIL/MapServer"
+}

@@ -384,12 +384,12 @@ const LOCAL_RDKB_DATA_URL = 'data/rdkb-addresses.json';
 const LOCAL_DERIVED_ADDRESS_SEARCH_URL = 'data/derived/address-search.json';
 const LOCAL_CACHE_DB_NAME = 'mapex-local-cache-derived-v3';
 const LOCAL_CACHE_DB_VERSION = 2;
-const LOCAL_CACHE_SCHEMA_VERSION = 'autocomplete-derived-v4';
+const LOCAL_CACHE_SCHEMA_VERSION = 'autocomplete-derived-v5';
 const LOCAL_CACHE_STORE = 'kv';
 const LOCAL_CACHE_VERSION_KEY = 'autocompleteVersion';
 const LOCAL_CACHE_ROWS_KEY = 'autocompleteRows';
 const LOCAL_CACHE_DERIVED_ROWS_KEY = 'addressSearchRows';
-const LOCAL_AUTOCOMPLETE_LIMIT = 20;
+const LOCAL_AUTOCOMPLETE_LIMIT = 100;
 const LOCAL_POINT_MATCH_MAX_METERS = 500;
 const LOCAL_POINT_MATCH_MAX_RESULTS = 8;
 const LOCAL_LAYER_ROOT = 'data/layers';
@@ -836,19 +836,19 @@ function ensureMainRDCKHitTargets() {
       pointToLayer: (geojson, latlng) => {
         const marker = L.circleMarker(latlng, {
           radius: 9,
-          color: '#57D3FF',
-          weight: 0,
-          opacity: 0,
-          fillColor: '#57D3FF',
-          fillOpacity: 0
+          color: '#6B4F00',
+          weight: 1,
+          opacity: 1,
+          fillColor: '#F4B400',
+          fillOpacity: 0.95
         });
         marker.__rdckBaseStyle = {
           radius: 9,
-          color: '#57D3FF',
-          weight: 0,
-          opacity: 0,
-          fillColor: '#57D3FF',
-          fillOpacity: 0
+          color: '#6B4F00',
+          weight: 1,
+          opacity: 1,
+          fillColor: '#F4B400',
+          fillOpacity: 0.95
         };
         return marker;
       }
@@ -1914,7 +1914,7 @@ function buildDerivedAutocompleteRow(raw={}) {
     rawSource: 'derived',
     raw
   };
-  if (base.unit) {
+  if (base.suite) {
     base.metaBottom = `Unit ${base.suite}${base.folio ? ' | ' + base.folio : ''}`;
   } else if (base.folio) {
     base.metaBottom = base.folio;
