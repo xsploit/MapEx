@@ -198,6 +198,7 @@
       <div class="ltog"><input type="checkbox" id="mRoads" checked><div class="ldot" style="background:#666"></div><span>Road Labels</span></div>
       <div class="ltog"><input type="checkbox" id="mParcelsWMS" checked><div class="ldot" style="background:#FF6200"></div><span>ParcelMap BC (WMS)</span></div>
       <div class="ltog"><input type="checkbox" id="mRDCK"><div class="ldot" style="background:#4D148C"></div><span>RDCK Public Map Service</span></div>
+      <div class="ltog"><input type="checkbox" id="mSavedRDCKPoints" checked><div class="ldot" style="background:#F4B400"></div><span>Saved RDCK address points</span></div>
       <div class="ltog"><input type="checkbox" id="mRDKBProp"><div class="ldot" style="background:#00805A"></div><span>RDKB Property Search</span></div>
       <div class="ltog"><input type="checkbox" id="mRDKBParcels"><div class="ldot" style="background:#0066CC"></div><span>RDKB PMBC Parcels</span></div>
       <div class="ltog"><input type="checkbox" id="mRDKBAddr"><div class="ldot" style="background:#F4B400"></div><span>RDKB Address Points</span></div>
@@ -836,19 +837,19 @@ function ensureMainRDCKHitTargets() {
       pointToLayer: (geojson, latlng) => {
         const marker = L.circleMarker(latlng, {
           radius: 9,
-          color: '#6B4F00',
-          weight: 1,
-          opacity: 1,
-          fillColor: '#F4B400',
-          fillOpacity: 0.95
+          color: '#57D3FF',
+          weight: 0,
+          opacity: 0,
+          fillColor: '#57D3FF',
+          fillOpacity: 0
         });
         marker.__rdckBaseStyle = {
           radius: 9,
-          color: '#6B4F00',
-          weight: 1,
-          opacity: 1,
-          fillColor: '#F4B400',
-          fillOpacity: 0.95
+          color: '#57D3FF',
+          weight: 0,
+          opacity: 0,
+          fillColor: '#57D3FF',
+          fillOpacity: 0
         };
         return marker;
       }
@@ -1712,6 +1713,36 @@ let localAutocompleteLoadPromise = null;
 let localDerivedRows = [];
 let localDerivedLoadPromise = null;
 let localAutocompleteDisabledReason = '';
+
+// Show the saved RDCK snapshot locally at address-level zoom, without querying RDCK.
+const savedRDCKPointToggle = document.getElementById('mSavedRDCKPoints');
+const savedRDCKPointLayer = L.layerGroup().addTo(map);
+let savedRDCKRenderGeneration = 0;
+async function renderSavedRDCKPoints() {
+  const generation = ++savedRDCKRenderGeneration;
+  savedRDCKPointLayer.clearLayers();
+  if (!savedRDCKPointToggle.checked || map.getZoom() < 15) return;
+  try {
+    const rows = await ensureLocalAutocompleteRows();
+    if (generation !== savedRDCKRenderGeneration || !savedRDCKPointToggle.checked || map.getZoom() < 15) return;
+    const bounds = map.getBounds();
+    for (const row of rows) {
+      if (row.kind !== 'rdck' || row.rawSource !== 'localCache' || !Number.isFinite(row.lat) || !Number.isFinite(row.lon) || !bounds.contains([row.lat, row.lon])) continue;
+      L.circleMarker([row.lat, row.lon], {
+        radius: 2.5, color: '#6B4F00', weight: 0.6, fillColor: '#F4B400', fillOpacity: 0.95, bubblingMouseEvents: false
+      }).bindPopup(makeLayerRows([
+        ['Address', row.rawAddress || row.address], ['Unit', row.suite],
+        ['Community', row.comm], ['Folio', row.folio], ['Source', 'Saved RDCK snapshot']
+      ])).addTo(savedRDCKPointLayer);
+    }
+  } catch (err) {
+    alog('Saved RDCK address points unavailable: ' + err.message, 'err');
+  }
+}
+savedRDCKPointToggle.addEventListener('change', renderSavedRDCKPoints);
+map.on('moveend', renderSavedRDCKPoints);
+renderSavedRDCKPoints();
+
 const RDCK_LOCALITY_HINTS = ['CASTLEGAR', 'NELSON', 'CRESTON', 'SALMO', 'KASLO', 'SLOCAN', 'SLOCAN PARK', 'SLOCAN VALLEY', 'NAKUSP', 'NEW DENVER', 'SILVERTON', 'CRAWFORD BAY', 'BALFOUR', 'BLUEBERRY', 'ROBSON', 'THRUMS', 'SHOREACRES', 'WINLAW', 'KASLO'];
 const RDKB_LOCALITY_HINTS = ['TRAIL', 'ROSSLAND', 'GENELLE', 'JANELLE', 'GRAND FORKS', 'CHRISTINA LAKE', 'GREENWOOD', 'MIDWAY', 'FRUITVALE', 'WARFIELD', 'MONTROSE', 'CASCADE', 'BEAVERDELL', 'WESTBRIDGE', 'ROCK CREEK'];
 let currentRegionBias = null;
