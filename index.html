@@ -11,6 +11,14 @@
     main { width: min(100%, 460px); background: white; border-radius: 18px; padding: 36px 28px; box-shadow: 0 12px 38px #241b311a; text-align: center; }
     .brand { color: #4d148c; font-size: 1.15rem; font-weight: 800; letter-spacing: .04em; }
     .brand span { color: #ff6200; }
+    .status { display: inline-block; margin-top: 20px; padding: 5px 10px; border-radius: 30px; background: #fff0e5; color: #a63b00; font-size: .68rem; font-weight: 800; letter-spacing: .1em; }
+    .delivery { position: relative; height: 138px; margin: 12px auto 0; overflow: hidden; max-width: 330px; }
+    .road { position: absolute; right: 0; left: 0; bottom: 24px; border-bottom: 3px dashed #d7cce3; }
+    .truck { position: absolute; width: 126px; left: 50%; bottom: 26px; transform: translateX(-50%); animation: cruise 1.2s ease-in-out infinite; }
+    .speed { position: absolute; top: 58px; left: 15%; color: #b5a1c9; font-size: 20px; animation: dash 1s ease-out infinite; }
+    @keyframes cruise { 50% { transform: translate(-50%, -4px) rotate(-1deg); } }
+    @keyframes dash { from { opacity: 0; transform: translateX(12px); } 40% { opacity: 1; } to { opacity: 0; transform: translateX(-18px); } }
+    @media (prefers-reduced-motion: reduce) { .truck, .speed { animation: none; } }
     h1 { font-size: 1.8rem; line-height: 1.2; margin: 22px 0 12px; }
     p { color: #5b5264; }
     a { display: block; margin: 26px 0 14px; padding: 14px; border-radius: 9px; background: #4d148c; color: white; text-decoration: none; font-weight: 700; }
@@ -21,10 +29,22 @@
 <body>
   <main>
     <div class="brand">MAP<span>EX</span></div>
-    <h1>MapEx has moved</h1>
-    <p>The updated map is now available at MapEx2.</p>
-    <a href="https://xsploit.github.io/MapEx2/">Open MapEx2</a>
-    <small>Taking you there automatically in a few seconds.</small>
+    <div class="status">OUT FOR DELIVERY</div>
+    <div class="delivery" aria-hidden="true">
+      <div class="road"></div><div class="speed">━━</div>
+      <svg class="truck" viewBox="0 0 160 90" xmlns="http://www.w3.org/2000/svg">
+        <rect x="6" y="15" width="95" height="55" rx="5" fill="#4d148c"/>
+        <path d="M101 29h22l24 22v19h-46z" fill="#ff6200"/>
+        <path d="M108 35h12l15 15h-27z" fill="#d9efff"/>
+        <text x="18" y="49" font-family="system-ui,sans-serif" font-size="19" font-weight="800" fill="white">MAP<tspan fill="#ff9b59">EX</tspan></text>
+        <circle cx="35" cy="72" r="12" fill="#27212d"/><circle cx="35" cy="72" r="5" fill="#d7cce3"/>
+        <circle cx="123" cy="72" r="12" fill="#27212d"/><circle cx="123" cy="72" r="5" fill="#d7cce3"/>
+      </svg>
+    </div>
+    <h1>We moved your map.</h1>
+    <p>Good news: your map is on a new route. No missed delivery slip required.</p>
+    <a href="https://xsploit.github.io/MapEx2/">Track it to MapEx2 →</a>
+    <small>Redirecting automatically in a few seconds.</small>
   </main>
 </body>
 </html>
