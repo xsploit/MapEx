@@ -3563,9 +3563,50 @@ async function checkAPIs(){
 function setS(id,ok){const e=document.getElementById(id);e.className=`badge ${ok?'ok':'err'}`;e.textContent=ok?'ONLINE':'OFFLINE'}
 function setSNeutral(id,text){const e=document.getElementById(id);e.className='badge ld';e.textContent=text}
 
-setTimeout(checkAPIs, PERF.healthCheckDelayMs);
+const linkedAddressParams = new URLSearchParams(location.search);
+if (!(linkedAddressParams.get('address') && linkedAddressParams.get('city'))) {
+  setTimeout(checkAPIs, PERF.healthCheckDelayMs);
+}
 alog('BC Parcel Explorer ready. RDCK + BC Geocoder + ParcelMap BC.','ok');
-setTimeout(() => {
+async function openLinkedAddress() {
+  const params = new URLSearchParams(location.search);
+  const address = (params.get('address') || '').trim();
+  const city = normalizeAcText(params.get('city') || '');
+  if (!address || !city) return false;
+  acInput.value = address;
+  renderAutocompleteLoading('Searching saved addresses...');
+  try {
+    const rows = await ensureLocalAutocompleteRows();
+    const query = normalizeAcText(address);
+    const tokens = query.split(' ').filter(Boolean);
+    const unit = parseUnitSearch(address);
+    const matches = rows.filter(row => normalizeAcText(row.comm || '') === city &&
+      (row.kind === 'rdck' || row.kind === 'rdkb'))
+      .map(row => ({...row, score: scoreLocalAutocompleteRow(row, query, tokens, unit)}))
+      .filter(row => row.score >= 0)
+      .sort((a, b) => b.score - a.score || a.sortRank - b.sortRank);
+    const exact = matches.filter(row => row.normalizedStreet === query || row.normalizedAddress === query ||
+      normalizeAcText((row.address || '').split(',')[0]) === query);
+    const unique = new Map();
+    for (const row of matches) if (!unique.has(row.signature)) unique.set(row.signature, row);
+    const items = [...unique.values()].slice(0, LOCAL_AUTOCOMPLETE_LIMIT);
+    renderAutocompleteItems(items, 'saved addresses');
+    if (exact.length === 1 && exact[0].lat != null && exact[0].lon != null) {
+      const row = exact[0];
+      setRegionBias(row.kind);
+      acList.classList.remove('visible');
+      selectAddress({address: row.address, lat: row.lat, lon: row.lon, comm: row.comm,
+        folio: row.folio, streetNo: row.streetNo, strName: row.strName,
+        strType: row.strType, source: row.source, extra: {'Suite/Unit': row.suite || '—'}});
+    }
+  } catch (err) {
+    renderAutocompleteLoading('Saved address data unavailable.');
+    alog('Linked address lookup failed: ' + err.message, 'warn');
+  }
+  return true;
+}
+setTimeout(async () => {
+  if (await openLinkedAddress()) return;
   ensureLocalAutocompleteRows().catch(err => {
     alog('Local address cache preload skipped: ' + err.message, 'warn');
   });
